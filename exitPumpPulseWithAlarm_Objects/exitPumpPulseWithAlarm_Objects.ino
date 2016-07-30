@@ -25,7 +25,7 @@ class Pump {
     pinMode(OutputPin, OUTPUT);
     
     OnInterval = onInterval;
-    OffInterval = 10000 - onInterval;  // TODO: Change to be a minute.  Set for 10 seconds now for testing.
+    OffInterval = 60000 - onInterval;
     IsActive = true;
 
     CurrentState = PUMP_OFF;  // Pump starts off
@@ -68,9 +68,9 @@ Pump WortPump(1, 2000);
 #define BUZZER_SOUND HIGH
 #define BUZZER_SILENT LOW
 
-#define PROBE 3  // TODO: Change to PIN 2 when can get it working properly
-#define PROBE_TOUCH_LIQUID LOW
-#define PROBE_CLEAR HIGH
+#define PROBE 2  // TODO: Change to PIN 2 when can get it working properly
+#define PROBE_TOUCH_LIQUID HIGH
+#define PROBE_CLEAR LOW
 
 // put your setup code here, to run once:
 void setup() {
