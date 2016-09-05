@@ -37,6 +37,11 @@ void setup() {
   pinMode(LEFT_BUTTON, INPUT_PULLUP);
   
   pinMode(ALARM, OUTPUT);
+  
+  pinMode(WORT_PUMP_LIGHT, OUTPUT);
+  pinMode(WATER_PUMP_LIGHT, OUTPUT);
+  pinMode(LEFT_BUTTON_LIGHT, OUTPUT);
+  pinMode(RIGHT_BUTTON_LIGHT, OUTPUT);
 
   StartTimeMillis = millis();
   StartWortPumpLight = StartTimeMillis + ACTIVATE_INTERVAL;
@@ -56,43 +61,46 @@ void loop() {
   // Get current clock
   unsigned long currentMillis = millis();
 
-  // Wort Pump Light
-  if ((currentMillis >= StartWortPumpLight) && (currentMillis <= StopWortPumpLight)) {
-    digitalWrite(WORT_PUMP_LIGHT, HIGH);
-  } else {
-    digitalWrite(WORT_PUMP_LIGHT, LOW);
+  // If in initial start up evaluation, i.e. less than the last time the last light is turned on
+  if (currentMillis <= StopLeftButtonLight) {
+    // Wort Pump Light
+    if ((currentMillis >= StartWortPumpLight) && (currentMillis <= StopWortPumpLight)) {
+      digitalWrite(WORT_PUMP_LIGHT, HIGH);
+    } else {
+      digitalWrite(WORT_PUMP_LIGHT, LOW);
+    }
+  
+    // Water Pump Light
+    if ((currentMillis >= StartWaterPumpLight) && (currentMillis <= StopWaterPumpLight)) {
+      digitalWrite(WATER_PUMP_LIGHT, HIGH);
+    } else {
+      digitalWrite(WATER_PUMP_LIGHT, LOW);
+    }
+  
+    // Alarm
+    if ((currentMillis >= StartAlarm) && (currentMillis <= StopAlarm)) {
+      digitalWrite(ALARM, ALARM_SOUND);
+    } else {
+      digitalWrite(ALARM, ALARM_SILENT);
+    }
+  
+    // Right Button Light
+    if ((currentMillis >= StartRightButtonLight) && (currentMillis <= StopRightButtonLight)) {
+      digitalWrite(RIGHT_BUTTON_LIGHT, HIGH);
+    } else {
+      digitalWrite(RIGHT_BUTTON_LIGHT, LOW);
+    }
+  
+    // Left Button Light
+    if ((currentMillis >= StartLeftButtonLight) && (currentMillis <= StopLeftButtonLight)) {
+      digitalWrite(LEFT_BUTTON_LIGHT, HIGH);
+    } else {
+      digitalWrite(LEFT_BUTTON_LIGHT, LOW);
+    }
   }
-
-  // Water Pump Light
-  if ((currentMillis >= StartWaterPumpLight) && (currentMillis <= StopWaterPumpLight)) {
-    digitalWrite(WATER_PUMP_LIGHT, HIGH);
-  } else {
-    digitalWrite(WATER_PUMP_LIGHT, LOW);
-  }
-
-  // Alarm
-  if ((currentMillis >= StartAlarm) && (currentMillis <= StopAlarm)) {
-    digitalWrite(ALARM, ALARM_SOUND);
-  } else {
-    digitalWrite(ALARM, ALARM_SILENT);
-  }
-
-  // Right Button Light
-  if ((currentMillis >= StartRightButtonLight) && (currentMillis <= StopRightButtonLight)) {
-    digitalWrite(RIGHT_BUTTON_LIGHT, HIGH);
-  } else {
-    digitalWrite(RIGHT_BUTTON_LIGHT, LOW);
-  }
-
-  // Left Button Light
-  if ((currentMillis >= StartLeftButtonLight) && (currentMillis <= StopLeftButtonLight)) {
-    digitalWrite(LEFT_BUTTON_LIGHT, HIGH);
-  } else {
-    digitalWrite(LEFT_BUTTON_LIGHT, LOW);
-  }
-
-  // BUTTONS
-  if (currentMillis > StopLeftButtonLight) {
+  
+  // Now do the button evaluation
+  else {
     // TODO: This currently controls the light on the Trinket - the actual light stays on all the time
     // Right Button
     if (digitalRead(RIGHT_BUTTON) == LOW) {
