@@ -22,7 +22,7 @@
 #define RIGHT_BUTTON 3
 #define LEFT_BUTTON 4
 
-#define BOIL_SENSOR 14
+#define BOIL_SENSOR 15
 #define MASH_SENSOR_ONE 16
 #define MASH_SENSOR_TWO 17
 
@@ -80,7 +80,7 @@ void loop() {
   unsigned long currentMillis = millis();
 
   // If in initial start up evaluation, i.e. less than the last time the last light is turned on
-  if (currentMillis <= StopLeftButtonLight) {
+  if (currentMillis <= StopBeeper) {
     // Wort Pump Light
     if ((currentMillis >= StartWortPumpLight) && (currentMillis <= StopWortPumpLight)) {
       digitalWrite(WORT_PUMP_LIGHT, HIGH);
@@ -117,7 +117,7 @@ void loop() {
     }
     
     // Beeper
-    if ((currentMillis >= StartBeeper) && (currentMillis <= StopBeeper)) {
+    if ((currentMillis >= StartBeeper) && (currentMillis < StopBeeper)) {
       digitalWrite(BEEPER, BEEPER_SOUND);
     } else {
       digitalWrite(BEEPER, BEEPER_SILENT);
