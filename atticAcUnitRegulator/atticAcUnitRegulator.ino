@@ -8,10 +8,9 @@
 
 
 // Other constants
-// TODO: Revert to proper constants for John's board
-#define BUTTON 3 //0
+#define BUTTON 0
 #define TEMP_SENSOR 2
-#define LIGHT 5 //1
+#define LIGHT 1
 
 #define INTERVAL_FLASH_NORMAL 500
 #define INTERVAL_FLASH_DOUBLE 200
@@ -59,7 +58,6 @@ void setup() {
   Serial.begin(9600);
 }
 
-// TODO: Remove all Logging statements when done
 void loop() {
   // put your main code here, to run repeatedly:
   // Get current clock
@@ -97,18 +95,14 @@ void loop() {
         
         // If no FirstTempMeasurement, then this is the first button press
         if (FirstTempMeasurement == 0) {
-          // TODO: Remove test hard-coded value
-          //FirstTempMeasurement = analogRead(TEMP_SENSOR);
-          FirstTempMeasurement = 800;
+          FirstTempMeasurement = analogRead(TEMP_SENSOR);
           Serial.println("Setting FirstTempMeasurement = " + String(FirstTempMeasurement));
         
         // Second button push
         } else {
           InResultsCycle = true;
   
-          // TODO: Remove test hard-coded value
-          //long SecondTempMeasurement = analogRead(TEMP_SENSOR);
-          long SecondTempMeasurement = 725;
+          long SecondTempMeasurement = analogRead(TEMP_SENSOR);
           Serial.println("Setting SecondTempMeasurement = " + String(SecondTempMeasurement));
           
           long Difference = AbsoluteValue(FirstTempMeasurement - SecondTempMeasurement);
