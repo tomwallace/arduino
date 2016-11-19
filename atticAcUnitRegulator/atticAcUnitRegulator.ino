@@ -9,7 +9,7 @@
 
 // Other constants
 #define BUTTON 0
-#define TEMP_SENSOR 2
+#define TEMP_SENSOR 1
 #define LIGHT 1
 
 #define INTERVAL_FLASH_NORMAL 500
@@ -50,12 +50,12 @@ long TimeNextButtonClickAllowed = 0;
 
 void setup() {
   // put your setup code here, to run once:
-  pinMode(TEMP_SENSOR, INPUT);
+  //pinMode(TEMP_SENSOR, INPUT);
   pinMode(LIGHT, OUTPUT);
   pinMode(BUTTON, INPUT_PULLUP);
 
   // Set up serial port for output at 9600 bps
-  Serial.begin(9600);
+  //Serial.begin(9600);
 }
 
 void loop() {
@@ -69,7 +69,7 @@ void loop() {
     if (ResultsNumPulses == 0) {
       InResultsCycle = false;
       TimeStartNextPulse = 0;
-      Serial.println("Set InResultsCycle = false");
+      //Serial.println("Set InResultsCycle = false");
     } else {
       // Process pulses
       if (currentMillis >= TimeStartNextPulse && currentMillis <= (TimeStartNextPulse + INTERVAL_FLASH_NORMAL)) {
@@ -80,10 +80,10 @@ void loop() {
 
       if (currentMillis > (TimeStartNextPulse + INTERVAL_FLASH_NORMAL)) {
         --ResultsNumPulses;
-        Serial.println("Set ResultsNumPulses = " + String(ResultsNumPulses));
+        //Serial.println("Set ResultsNumPulses = " + String(ResultsNumPulses));
 
         TimeStartNextPulse = SetResultsTimeStartNextPulse(currentMillis, ResultsNumPulses); 
-        Serial.println("Set TimeStartNextPulse = " + String(TimeStartNextPulse));
+        //Serial.println("Set TimeStartNextPulse = " + String(TimeStartNextPulse));
       }
     }
 
@@ -96,19 +96,19 @@ void loop() {
         // If no FirstTempMeasurement, then this is the first button press
         if (FirstTempMeasurement == 0) {
           FirstTempMeasurement = analogRead(TEMP_SENSOR);
-          Serial.println("Setting FirstTempMeasurement = " + String(FirstTempMeasurement));
+          //Serial.println("Setting FirstTempMeasurement = " + String(FirstTempMeasurement));
         
         // Second button push
         } else {
           InResultsCycle = true;
   
           long SecondTempMeasurement = analogRead(TEMP_SENSOR);
-          Serial.println("Setting SecondTempMeasurement = " + String(SecondTempMeasurement));
+          //Serial.println("Setting SecondTempMeasurement = " + String(SecondTempMeasurement));
           
           long Difference = AbsoluteValue(FirstTempMeasurement - SecondTempMeasurement);
           // Cast as long to truncate - don't have access to Math library
           long TruncatedRatio = (long)(Difference/JOHN_DIVISOR);
-          Serial.println("TruncatedRation = " + String(TruncatedRatio));
+          //Serial.println("TruncatedRation = " + String(TruncatedRatio));
           
           // Account for final double pulse
           ResultsNumPulses = TruncatedRatio + 2;
