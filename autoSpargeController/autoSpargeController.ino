@@ -6,6 +6,10 @@
  * of sparge water going into the mash tun and the rate of wort leaving the mash tun.  It is designed to
  * work with a standard brewery build from The Electric Brewery.  The controller interacts with two pumps, 
  * and two probes.
+ * 
+ * Test mode can be entered by reboot the trinket (or cycling power) and holding down the Left Button while
+ * it finishes booting.  All lights will flash three times if in test mode.  To exit test mode,
+ * reboot the trinket.
  */
 // Define Pins
 #define TRINKET_BOARD_LED_PIN 13
@@ -23,9 +27,6 @@
 
 #define ALARM_SOUND HIGH
 #define ALARM_SILENT LOW
-
-#define MAINT_MODE_BEEP_INTERVAL 4950
-#define MAINT_MODE_BEEP_LENGTH 50
 
 /*
  * The Logging base class manages sending logging messages out to the serial port
@@ -94,7 +95,7 @@ class WortPump : Loggable {
     pinMode(OutputPin, OUTPUT);
     
     OnInterval = onInterval;
-    OffInterval = 60000 - onInterval;  // TODO: Change to be a minute.  Set for 10 seconds now for testing.
+    OffInterval = 60000 - onInterval;
     IsActive = true;
 
     CurrentState = PUMP_OFF;  // Pump starts off
@@ -124,7 +125,6 @@ class WortPump : Loggable {
   void Update(long currentMillis, Probe boilProbe) {
     int OriginalState = CurrentState;
     // If probe is contacting liquid, pump is always off
-    // Pump is also always off if in maintenance mode
     if (boilProbe.IsTouching() || ! IsActive) {
       CurrentState = PUMP_OFF;
       digitalWrite(OutputPin, CurrentState);
@@ -191,7 +191,6 @@ class WaterPump : Loggable {
     int OriginalAlarmState = CurrentAlarmState;
     
     // If probe is contacting liquid, pump is always off
-    // Pump is also always off if in maintenance mode
     if (mashProbe.IsTouching() || ! IsActive) {
       previousMillis = currentMillis;
       
@@ -255,29 +254,12 @@ class Button : Loggable {
     MatchingFunctionOn = false;
   }
 
-  int GetButtonPin() {
-    return ButtonPin;
-  }
-
-  bool IsClickedWithDelay() {
-    return (HasBeenClicked && (! EligibleToBeClicked));
-  }
-
   bool IsCurrentlyDepressed() {
     return (digitalRead(ButtonPin) == LOW);
   }
 
   bool GetMatchingFunctionOn() {
     return MatchingFunctionOn;
-  }
-
-  // Pulses the light in 1 second increments, used to indicate in maintenance mode
-  void PulseLight(long currentMillis) {
-    if (((currentMillis / 1000) % 2) == 1) {
-      digitalWrite(LightPin, HIGH);
-    } else {
-      digitalWrite(LightPin, LOW);
-    }
   }
 
   void Update(long currentMillis, int buzzerPin) {
@@ -316,55 +298,6 @@ class Button : Loggable {
   }
 };
 
-/*
- * The MaintenanceMode class isolates functionality related to entering and leaving maintenance mode.
- */
-class MaintenanceMode {
-  int TIME_BUTTON_HELD_ENTER = 2000;  // Number of milliseconds button must be held to enter Maintenance Mode
-  
-  bool InMode;
-  int InputButtonPinOne;   // The pin number that receives input to put into Maintenance Mode (button one)
-  int InputButtonPinTwo;   // The pin number that receives input to put into Maintenance Mode (button two)
-  long ButtonMillis;
-
-  // Constructor
-  public: MaintenanceMode(int inputButtonPinOne, int inputButtonPinTwo) {
-    InputButtonPinOne = inputButtonPinOne;
-    InputButtonPinTwo = inputButtonPinTwo;
-    InMode = false;
-    ButtonMillis = 0;
-  }
-
-  bool GetInMode() {
-    return InMode;
-  }
-
-  // Toggles the mode
-  void ToggleMode() {
-    if (InMode) {
-      InMode = false;
-    } else {
-      InMode = true;
-    }
-  }
-
-  void Update(long currentMillis) {
-    if ((digitalRead(InputButtonPinOne) == LOW) && (digitalRead(InputButtonPinTwo) == LOW)) {
-      // If we have not recorded the push time of the buttons, do so now
-      if (ButtonMillis == 0) {
-        ButtonMillis = currentMillis;
-      }
-      if (currentMillis - ButtonMillis > TIME_BUTTON_HELD_ENTER) {
-        // TODO: Fix bug when switch happens if on
-        ToggleMode();
-        ButtonMillis = 0;     
-      }
-    } else {
-      ButtonMillis = 0;
-    }
-  }
-};
-
 // Create objects
 Button LeftButton("Left Button", LEFT_BUTTON_PIN, INPUT_PULLUP, LEFT_BUTTON_LIGHT_PIN);
 Button RightButton("Right Button", RIGHT_BUTTON_PIN, INPUT_PULLUP, RIGHT_BUTTON_LIGHT_PIN);
@@ -376,13 +309,9 @@ Probe BoilProbe("Boil Probe", BOIL_PROBE_PIN, INPUT);
 WaterPump WaterPump(WATER_PUMP_PIN, 10000);
 WortPump WortPump(WORT_PUMP_PIN, 2000);
 
-MaintenanceMode MaintMode(LeftButton.GetButtonPin(), RightButton.GetButtonPin());
-
+// Initalize general use variables
 bool FirstTimeThroughCode = true;
 bool InTestMode = false;
-
-long MaintModeBeepMillis = 0;
-int BuzzerState = ALARM_SILENT;
 
 // put your setup code here, to run once:
 void setup() {
@@ -446,59 +375,9 @@ void loop() {
     }
   }
 
-  // TODO: Return to maintenance mode after finished with base functionality
-    /*
-  // Determine if in maintenance mode, which trumps all other functions
-  if (MaintMode.GetInMode()) {
-    // Buzzer sounds in background to indicate still in Maintenance Mode
-    if ((BuzzerState == ALARM_SILENT) && (currentMillis - MaintModeBeepMillis >= MAINT_MODE_BEEP_INTERVAL)) { 
-      MaintModeBeepMillis = currentMillis;
-      BuzzerState = ALARM_SOUND;
-      digitalWrite(ALARM, BuzzerState);
-    } else if ((BuzzerState == ALARM_SOUND) && (currentMillis - MaintModeBeepMillis >= MAINT_MODE_BEEP_LENGTH)) { 
-      MaintModeBeepMillis = currentMillis;
-      BuzzerState = ALARM_SILENT;
-      digitalWrite(ALARM, BuzzerState);
-    }
-    
-    // Determine if needed
-    if (ButtonUp.IsClickedWithDelay()) {
-      WortPump.AddSecondOn();
-    }
-
-  } else {
-    // Probe override, which always has the pump off
-    if (MashProbe.IsTouching()) {
-      digitalWrite(ALARM, ALARM_SOUND);
-      WortPump.SetIsActive(false);
-    } else {
-      digitalWrite(ALARM, ALARM_SILENT);
-      WortPump.SetIsActive(true);
-    }
-  
-    WortPump.Update(currentMillis);
-  }
-    
-  
-  MaintMode.Update(currentMillis, WortPump);
-  ButtonUp.Update(currentMillis, ALARM);
-*/
-
   // Update objects
   LeftButton.Update(currentMillis, BUZZER);
   RightButton.Update(currentMillis, BUZZER);
-
-  // Determine if in maintenance mode, which trumps all other functions
-  if (MaintMode.GetInMode()) {
-    // If in Maintenance Mode, the pumps are always off
-    WaterPump.SetIsActive(false);
-    WortPump.SetIsActive(false);
-    // TODO: Make lights turn off as default before flashing
-
-    // Make lights flash to indicate in mode
-    LeftButton.PulseLight(currentMillis);
-    RightButton.PulseLight(currentMillis);
-  }
 
   // Set pump active based on their buttons
   WaterPump.SetIsActive(LeftButton.GetMatchingFunctionOn());
@@ -510,7 +389,5 @@ void loop() {
 
   WaterPump.Update(currentMillis, MashProbe, MashProbeHigh);
   WortPump.Update(currentMillis, BoilProbe);
-
-  MaintMode.Update(currentMillis);
 }
 
