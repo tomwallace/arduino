@@ -13,17 +13,17 @@
  */
 // Define Pins
 #define TRINKET_BOARD_LED_PIN 13
-#define ALARM 8
-#define BUZZER 11
-#define LEFT_BUTTON_PIN 4
-#define LEFT_BUTTON_LIGHT_PIN 6
-#define RIGHT_BUTTON_PIN 3
-#define RIGHT_BUTTON_LIGHT_PIN 5
-#define MASH_PROBE_PIN 16
-#define MASH_PROBE_HIGH_PIN 17
-#define BOIL_PROBE_PIN 15
-#define WATER_PUMP_PIN 13
-#define WORT_PUMP_PIN 12
+#define ALARM 8 //8
+#define BUZZER 9 //11
+#define LEFT_BUTTON_PIN 4 //4
+#define LEFT_BUTTON_LIGHT_PIN 6 //6
+#define RIGHT_BUTTON_PIN 3 //3
+#define RIGHT_BUTTON_LIGHT_PIN 5 //5
+#define MASH_PROBE_PIN 16 //16
+#define MASH_PROBE_HIGH_PIN 17 //17
+#define BOIL_PROBE_PIN 12 //15
+#define WATER_PUMP_PIN 10 //13
+#define WORT_PUMP_PIN 11 //12
 
 #define ALARM_SOUND HIGH
 #define ALARM_SILENT LOW
