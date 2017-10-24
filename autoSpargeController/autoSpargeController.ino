@@ -373,6 +373,34 @@ void loop() {
       digitalWrite(WORT_PUMP_PIN, LOW);
       digitalWrite(ALARM, LOW);
     }
+
+    // If Mash Probe then do three "dashes"
+    if (digitalRead(MASH_PROBE_PIN) == HIGH) {
+      int counter = 0;
+      while(counter < 3) {
+        digitalWrite(BUZZER, HIGH);
+        delay(350);
+        digitalWrite(BUZZER, LOW);
+        delay(350);
+        counter++;
+      }
+    } else {
+      digitalWrite(BUZZER, LOW);
+    }
+
+    // If Boil Probe then do three "dots"
+    if (digitalRead(BOIL_PROBE_PIN) == HIGH) {
+      int counter = 0;
+      while(counter < 3) {
+        digitalWrite(BUZZER, HIGH);
+        delay(75);
+        digitalWrite(BUZZER, LOW);
+        delay(450);
+        counter++;
+      }
+    } else {
+      digitalWrite(BUZZER, LOW);
+    }
   }
 
   // Update objects
