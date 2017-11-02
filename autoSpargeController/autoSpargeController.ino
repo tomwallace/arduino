@@ -1,6 +1,6 @@
 /*
  * AUTOSPARGE CONTROLLER
- * version 0.5
+ * version 0.6
  * by Tom Wallace and John Baker
  * This sketch controls the components hooked up to the Auto Sparge assembly, which controls the rate 
  * of sparge water going into the mash tun and the rate of wort leaving the mash tun.  It is designed to
@@ -87,6 +87,7 @@ class WortPump : Loggable {
 
   // Members to detail state
   int CurrentState;
+  int CurrentAlarmState;
   unsigned long previousMillis;  // Stores the last time the state changed
   
   // Constructor
@@ -99,6 +100,7 @@ class WortPump : Loggable {
     IsActive = true;
 
     CurrentState = PUMP_OFF;  // Pump starts off
+    CurrentAlarmState = ALARM_SILENT;
     previousMillis = 0;
   }
 
@@ -123,7 +125,11 @@ class WortPump : Loggable {
   }
 
   void Update(long currentMillis, Probe boilProbe) {
+    // Sanity check - Ensure that alarm does not sound constantly due to mid-state shift
+    digitalWrite(ALARM, ALARM_SILENT);
     int OriginalState = CurrentState;
+    int OriginalAlarmState = CurrentAlarmState;
+    
     // If probe is contacting liquid, pump is always off
     if (boilProbe.IsTouching() || ! IsActive) {
       CurrentState = PUMP_OFF;
@@ -141,10 +147,29 @@ class WortPump : Loggable {
         digitalWrite(OutputPin, CurrentState);
       }
     }
+
+    // Handle pulsing alarm every 2 seconds if probe is touching
+    if (boilProbe.IsTouching() && IsActive) {
+      bool canToggle = (currentMillis % 2000) == 0;
+      if (canToggle) {
+        CurrentAlarmState = CurrentAlarmState == ALARM_SOUND ? ALARM_SILENT : ALARM_SOUND;
+      }
+      digitalWrite(ALARM, CurrentAlarmState);
+    } else {
+      digitalWrite(ALARM, ALARM_SILENT);
+      CurrentAlarmState == ALARM_SILENT;
+    }
+    
     // If state changed, then log
     if (CurrentState != OriginalState) {
       String state = CurrentState == PUMP_ON ? "ON" : "OFF";
       Log(currentMillis, "Wort Pump", "State has changed to " + state); 
+    }
+
+    // If alarm state changed, then log
+    if (CurrentAlarmState != OriginalAlarmState) {
+      String state = CurrentAlarmState == ALARM_SOUND ? "SOUNDING" : "SILENT";
+      Log(currentMillis, "Wort Pump Alarm", "State has changed to " + state); 
     }
   }
 };
@@ -187,6 +212,8 @@ class WaterPump : Loggable {
   }
 
   void Update(long currentMillis, Probe mashProbe, Probe mashProbeHigh) {
+    // Sanity check - Ensure that alarm does not sound constantly due to mid-state shift
+    digitalWrite(ALARM, ALARM_SILENT);
     int OriginalState = CurrentState;
     int OriginalAlarmState = CurrentAlarmState;
     
@@ -206,7 +233,7 @@ class WaterPump : Loggable {
     }
 
     // Sound alarm if high level probe contacting liquid
-    if (mashProbeHigh.IsTouching()) {
+    if (mashProbeHigh.IsTouching() && IsActive) {
       digitalWrite(ALARM, ALARM_SOUND);
       CurrentAlarmState = ALARM_SOUND;
     } else {
@@ -223,7 +250,7 @@ class WaterPump : Loggable {
     // If alarm state changed, then log
     if (CurrentAlarmState != OriginalAlarmState) {
       String state = CurrentAlarmState == ALARM_SOUND ? "SOUNDING" : "SILENT";
-      Log(currentMillis, "Alarm", "State has changed to " + state); 
+      Log(currentMillis, "Water Pump Alarm", "State has changed to " + state); 
     }
   }
 };
@@ -263,6 +290,9 @@ class Button : Loggable {
   }
 
   void Update(long currentMillis, int buzzerPin) {
+    // Sanity check - Ensure that buzzer does not sound constantly due to mid-state shift
+    digitalWrite(buzzerPin, LOW);
+    
     // Determine if button has been clicked
     if ((! HasBeenClicked) && (digitalRead(ButtonPin) == LOW)) {
       // Log click
