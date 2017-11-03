@@ -1,3 +1,4 @@
+#include "EventQueue.h"
 /*
  * AUTOSPARGE CONTROLLER
  * version 0.6
@@ -13,17 +14,17 @@
  */
 // Define Pins
 #define TRINKET_BOARD_LED_PIN 13
-#define ALARM 8 //8
-#define BUZZER 9 //11
+#define ALARM_PIN 8 //8
+#define BUZZER_PIN 11 //*9 //11
 #define LEFT_BUTTON_PIN 4 //4
 #define LEFT_BUTTON_LIGHT_PIN 6 //6
 #define RIGHT_BUTTON_PIN 3 //3
 #define RIGHT_BUTTON_LIGHT_PIN 5 //5
 #define MASH_PROBE_PIN 16 //16
 #define MASH_PROBE_HIGH_PIN 17 //17
-#define BOIL_PROBE_PIN 12 //15
-#define WATER_PUMP_PIN 10 //13
-#define WORT_PUMP_PIN 11 //12
+#define BOIL_PROBE_PIN 15 //*12 //15
+#define WATER_PUMP_PIN 13 //*10 //13
+#define WORT_PUMP_PIN 12 //*11 //12
 
 #define ALARM_SOUND HIGH
 #define ALARM_SILENT LOW
@@ -36,6 +37,84 @@ class Loggable {
   
   void Log(long currentMillis, String callingObjName, String msg) {
     Serial.println(String(currentMillis) + " - " + callingObjName + ": " + msg);
+  }
+};
+
+
+// TODO: Add updateable interface with debug added and forces Update method
+/*
+ * EventQueue is a simple class that tracks events (non-duplicate) and informs if any events are in the queue.
+ */
+ /*
+class EventQueue2 : Loggable {
+  private: String _queue;
+  private: String _queueName;
+  
+  public: EventQueue2(String queueName) {
+    _queue = "";
+    _queueName = queueName;
+  };
+
+  void AddEvent(String event) {
+    // If event is not already on queue, add it
+    if (_queue.indexOf(event) == -1) {
+      Log(9999, _queueName, "Adding event " + event);
+      _queue = _queue + event;
+      Log(9999, _queueName, "Queue now " + _queue);
+    }
+  }
+
+  void RemoveEvent(String event) {
+    //Log(9999, _queueName, "Removing event " + event);
+    _queue.replace(event, "");
+    //Log(9999, _queueName, "Queue now " + _queue);
+  }
+
+  bool IsPopulated() {
+    return (_queue.length() > 0);
+  }
+};
+*/
+/*
+ * The Beeper class represents a sound output, such as the alarm or buzzer.  The sound is controlled 
+ * by an EventQueue.
+ */
+class Beeper : Loggable {
+  private: int _outputPin;
+  private: EventQueue * _eventQueue;
+  private: int _currentState;
+  private: String _beeperName;
+  
+  private: int SOUND = HIGH;
+  private: int SILENT = LOW;
+
+  public: Beeper(String beeperName, int outputPin, EventQueue * eventQueue) {
+    _beeperName = beeperName;
+    _outputPin = outputPin;
+    _eventQueue = eventQueue;
+
+    pinMode(_outputPin, OUTPUT);
+    digitalWrite(_outputPin, SILENT);
+    _currentState = SILENT;
+  }
+
+  void Update(long currentMillis) {
+    int OriginalState = _currentState;
+    
+    if (_eventQueue->IsPopulated()) {
+      Log(currentMillis, _beeperName, "State is populated");
+      digitalWrite(_outputPin, SOUND);
+      _currentState = SOUND;
+    } else {
+      digitalWrite(_outputPin, SILENT);
+      _currentState = SILENT;
+    }
+      
+    // If state changed, then log
+    if (_currentState != OriginalState) {
+      String state = _currentState == SOUND ? "SOUNDING" : "SILENT";
+      Log(currentMillis, _beeperName, "State has changed to " + state); 
+    }
   }
 };
 
@@ -79,6 +158,8 @@ class Probe : Loggable {
 class WortPump : Loggable {
   int PUMP_ON = HIGH;
   int PUMP_OFF = LOW;
+
+  private: EventQueue * _alarmEventQueue;
   
   int OutputPin;   // The pin number that control pump output
   long OnInterval; // Milliseconds in a minute the pump is on
@@ -87,20 +168,20 @@ class WortPump : Loggable {
 
   // Members to detail state
   int CurrentState;
-  int CurrentAlarmState;
   unsigned long previousMillis;  // Stores the last time the state changed
   
   // Constructor
-  public: WortPump(int outputPin, long onInterval) {
+  public: WortPump(int outputPin, long onInterval, EventQueue * alarmEventQueue) {
     OutputPin = outputPin;
     pinMode(OutputPin, OUTPUT);
+
+    _alarmEventQueue = alarmEventQueue;
     
     OnInterval = onInterval;
     OffInterval = 60000 - onInterval;
     IsActive = true;
 
     CurrentState = PUMP_OFF;  // Pump starts off
-    CurrentAlarmState = ALARM_SILENT;
     previousMillis = 0;
   }
 
@@ -125,10 +206,7 @@ class WortPump : Loggable {
   }
 
   void Update(long currentMillis, Probe boilProbe) {
-    // Sanity check - Ensure that alarm does not sound constantly due to mid-state shift
-    digitalWrite(ALARM, ALARM_SILENT);
     int OriginalState = CurrentState;
-    int OriginalAlarmState = CurrentAlarmState;
     
     // If probe is contacting liquid, pump is always off
     if (boilProbe.IsTouching() || ! IsActive) {
@@ -150,26 +228,20 @@ class WortPump : Loggable {
 
     // Handle pulsing alarm every 2 seconds if probe is touching
     if (boilProbe.IsTouching() && IsActive) {
-      bool canToggle = (currentMillis % 2000) == 0;
-      if (canToggle) {
-        CurrentAlarmState = CurrentAlarmState == ALARM_SOUND ? ALARM_SILENT : ALARM_SOUND;
-      }
-      digitalWrite(ALARM, CurrentAlarmState);
+      // TODO: Consider changing to pulsing it works
+      //bool canToggle = (currentMillis % 2000) == 0;
+      //if (canToggle) {
+      //  CurrentAlarmState = CurrentAlarmState == ALARM_SOUND ? ALARM_SILENT : ALARM_SOUND;
+      //}
+      _alarmEventQueue->AddEvent("BoilProbe");
     } else {
-      digitalWrite(ALARM, ALARM_SILENT);
-      CurrentAlarmState == ALARM_SILENT;
+      _alarmEventQueue->RemoveEvent("BoilProbe");
     }
     
     // If state changed, then log
     if (CurrentState != OriginalState) {
       String state = CurrentState == PUMP_ON ? "ON" : "OFF";
       Log(currentMillis, "Wort Pump", "State has changed to " + state); 
-    }
-
-    // If alarm state changed, then log
-    if (CurrentAlarmState != OriginalAlarmState) {
-      String state = CurrentAlarmState == ALARM_SOUND ? "SOUNDING" : "SILENT";
-      Log(currentMillis, "Wort Pump Alarm", "State has changed to " + state); 
     }
   }
 };
@@ -180,6 +252,8 @@ class WortPump : Loggable {
 class WaterPump : Loggable {
   int PUMP_ON = HIGH;
   int PUMP_OFF = LOW;
+
+  private: EventQueue * _alarmEventQueue;
   
   int OutputPin;   // The pin number that control pump output
   bool IsActive;   // Toggle to let overrides stop pump
@@ -191,9 +265,11 @@ class WaterPump : Loggable {
   unsigned long previousMillis;  // Stores the last time the state changed
   
   // Constructor
-  public: WaterPump(int outputPin, long delay) {
+  public: WaterPump(int outputPin, long delay, EventQueue * alarmEventQueue) {
     OutputPin = outputPin;
     pinMode(OutputPin, OUTPUT);
+
+    _alarmEventQueue = alarmEventQueue;
     
     Delay = delay;
     IsActive = true;
@@ -202,7 +278,7 @@ class WaterPump : Loggable {
     CurrentAlarmState = ALARM_SILENT;
     previousMillis = 0;
   }
-
+  
   void SetIsActive(bool isActive) {
     IsActive = isActive;
   }
@@ -212,10 +288,7 @@ class WaterPump : Loggable {
   }
 
   void Update(long currentMillis, Probe mashProbe, Probe mashProbeHigh) {
-    // Sanity check - Ensure that alarm does not sound constantly due to mid-state shift
-    digitalWrite(ALARM, ALARM_SILENT);
     int OriginalState = CurrentState;
-    int OriginalAlarmState = CurrentAlarmState;
     
     // If probe is contacting liquid, pump is always off
     if (mashProbe.IsTouching() || ! IsActive) {
@@ -234,23 +307,15 @@ class WaterPump : Loggable {
 
     // Sound alarm if high level probe contacting liquid
     if (mashProbeHigh.IsTouching() && IsActive) {
-      digitalWrite(ALARM, ALARM_SOUND);
-      CurrentAlarmState = ALARM_SOUND;
+      _alarmEventQueue->AddEvent("MashProbeHigh");
     } else {
-      digitalWrite(ALARM, ALARM_SILENT);
-      CurrentAlarmState = ALARM_SILENT;
+      _alarmEventQueue->RemoveEvent("MashProbeHigh");
     }
 
     // If state changed, then log
     if (CurrentState != OriginalState) {
       String state = CurrentState == PUMP_ON ? "ON" : "OFF";
       Log(currentMillis, "Water Pump", "State has changed to " + state); 
-    }
-
-    // If alarm state changed, then log
-    if (CurrentAlarmState != OriginalAlarmState) {
-      String state = CurrentAlarmState == ALARM_SOUND ? "SOUNDING" : "SILENT";
-      Log(currentMillis, "Water Pump Alarm", "State has changed to " + state); 
     }
   }
 };
@@ -259,28 +324,32 @@ class Button : Loggable {
   int BUTTON_BEEP_LENGTH = 10;  // Length of beep when button pressed
   int HAS_BEEN_CLICKED_DELAY = 500; // Length of delay before button is eligible for clicking again (prevents burst by holding button down)
 
+  private: EventQueue * _buzzerEventQueue;
+
   String ButtonName;  // Name of the button for logging
   int ButtonPin;  // The pin number attached to the button
   int LightPin;  // The pin the button light is attached to
-  long ClickedMillis;  // Clock time button last pressed
-  bool HasBeenClicked;  // Used to control click sound
+  long TurnOffClickSoundMillis;  // When to turn off the click sound
   bool EligibleToBeClicked; // Used with delay to prevent "burst" clicking
+  long EligibleToBeClickedMillis; // To determine when to set the EligibleToBeClicked flag
 
   bool MatchingFunctionOn;  // Used to pair the button with a pump function
 
   // Constructor - inputType should be INPUT or INPUT_PULLUP
-  public: Button(String buttonName, int buttonPin, int inputType, int lightPin) {
+  public: Button(String buttonName, int buttonPin, int inputType, int lightPin, EventQueue * buzzerEventQueue) {
     ButtonName = buttonName;
     ButtonPin = buttonPin;
     LightPin = lightPin;
+    _buzzerEventQueue = buzzerEventQueue;
+    
     pinMode(ButtonPin, inputType);
     pinMode(LightPin, OUTPUT);
-    ClickedMillis = 0;
-    HasBeenClicked = false;
+    TurnOffClickSoundMillis = 0;
     EligibleToBeClicked = true;
+    EligibleToBeClickedMillis = 0;
     MatchingFunctionOn = false;
   }
-
+  
   bool IsCurrentlyDepressed() {
     return (digitalRead(ButtonPin) == LOW);
   }
@@ -289,36 +358,33 @@ class Button : Loggable {
     return MatchingFunctionOn;
   }
 
-  void Update(long currentMillis, int buzzerPin) {
-    // Sanity check - Ensure that buzzer does not sound constantly due to mid-state shift
-    digitalWrite(buzzerPin, LOW);
-    
+  void Update(long currentMillis) {    
     // Determine if button has been clicked
-    if ((! HasBeenClicked) && (digitalRead(ButtonPin) == LOW)) {
+    if (IsCurrentlyDepressed() && EligibleToBeClicked) {
       // Log click
-      String sMillis = String(currentMillis);
-      String sButtonPin = String(ButtonPin);
-      //Serial.println(sMillis + "Button Pin: " + sButtonPin + " is currently pushed.");
       Log(currentMillis, ButtonName, "currently pushed.");
       
-      ClickedMillis = currentMillis;
-      HasBeenClicked = true;
       EligibleToBeClicked = false;
+      EligibleToBeClickedMillis = currentMillis + HAS_BEEN_CLICKED_DELAY;
+
+      // Sound click on button
+      _buzzerEventQueue->AddEvent(ButtonName);
+      TurnOffClickSoundMillis = currentMillis + BUTTON_BEEP_LENGTH;
+      
       // Toggle light and matching function
       MatchingFunctionOn = MatchingFunctionOn ? false : true;
     }
-    // Sound click on button
-    if (currentMillis - ClickedMillis <= BUTTON_BEEP_LENGTH) { 
-      digitalWrite(buzzerPin, HIGH);
-    } else if (currentMillis - ClickedMillis <= BUTTON_BEEP_LENGTH + 5) { 
-      digitalWrite(buzzerPin, LOW);
-    }
-    if (digitalRead(ButtonPin) == HIGH) {
-      HasBeenClicked = false;
-    }
-    if ((digitalRead(ButtonPin) == HIGH) && (currentMillis - ClickedMillis >= HAS_BEEN_CLICKED_DELAY)) {
+
+    // Determine when button is eligible to be clicked again to prevent button bursting
+    if (!IsCurrentlyDepressed() && (currentMillis > EligibleToBeClickedMillis)) {
       EligibleToBeClicked = true;
     }
+
+    // Turn off sound click when ready
+    if (currentMillis > TurnOffClickSoundMillis) {
+      _buzzerEventQueue->RemoveEvent(ButtonName);
+    }
+    
     // Handle light on/off
     if (MatchingFunctionOn) {
       digitalWrite(LightPin, HIGH);
@@ -329,15 +395,21 @@ class Button : Loggable {
 };
 
 // Create objects
-Button LeftButton("Left Button", LEFT_BUTTON_PIN, INPUT_PULLUP, LEFT_BUTTON_LIGHT_PIN);
-Button RightButton("Right Button", RIGHT_BUTTON_PIN, INPUT_PULLUP, RIGHT_BUTTON_LIGHT_PIN);
+EventQueue AlarmEventQueue("AlarmEventQueue");
+EventQueue BuzzerEventQueue("BuzzerEventQueue");
+
+Beeper Alarm("Alarm", ALARM_PIN, &AlarmEventQueue);
+Beeper Buzzer("Buzzer", BUZZER_PIN, &BuzzerEventQueue);
+
+Button LeftButton("Left Button", LEFT_BUTTON_PIN, INPUT_PULLUP, LEFT_BUTTON_LIGHT_PIN, &BuzzerEventQueue);
+Button RightButton("Right Button", RIGHT_BUTTON_PIN, INPUT_PULLUP, RIGHT_BUTTON_LIGHT_PIN, &BuzzerEventQueue);
 
 Probe MashProbe("Mash Probe", MASH_PROBE_PIN, INPUT);
 Probe MashProbeHigh("Mash Probe High", MASH_PROBE_HIGH_PIN, INPUT);
 Probe BoilProbe("Boil Probe", BOIL_PROBE_PIN, INPUT);
 
-WaterPump WaterPump(WATER_PUMP_PIN, 10000);
-WortPump WortPump(WORT_PUMP_PIN, 2000);
+WaterPump WaterPump(WATER_PUMP_PIN, 10000, &AlarmEventQueue);
+WortPump WortPump(WORT_PUMP_PIN, 2000, &AlarmEventQueue);
 
 // Initalize general use variables
 bool FirstTimeThroughCode = true;
@@ -346,8 +418,6 @@ bool InTestMode = false;
 // put your setup code here, to run once:
 void setup() {
   pinMode(TRINKET_BOARD_LED_PIN, OUTPUT);
-  pinMode(ALARM, OUTPUT);
-  pinMode(BUZZER, OUTPUT);
 
   // Set up serial port for output at 9600 bps
   Serial.begin(9600);
@@ -384,68 +454,127 @@ void loop() {
 
   // Test mode routine - only way to get out is to cycle power or reset and LeftButton is NOT pushed
   if (InTestMode) {
+    TestInteractions();
+    /*
     if (LeftButton.IsCurrentlyDepressed()) {
       digitalWrite(LEFT_BUTTON_LIGHT_PIN, HIGH);
       digitalWrite(WATER_PUMP_PIN, HIGH);
-      digitalWrite(BUZZER, HIGH);
+      digitalWrite(BUZZER_PIN, HIGH);
     } else {
       digitalWrite(LEFT_BUTTON_LIGHT_PIN, LOW);
       digitalWrite(WATER_PUMP_PIN, LOW);
-      digitalWrite(BUZZER, LOW);
+      digitalWrite(BUZZER_PIN, LOW);
     }
 
     if (RightButton.IsCurrentlyDepressed()) {
       digitalWrite(RIGHT_BUTTON_LIGHT_PIN, HIGH);
       digitalWrite(WORT_PUMP_PIN, HIGH);
-      digitalWrite(ALARM, HIGH);
+      digitalWrite(ALARM_PIN, HIGH);
     } else {
       digitalWrite(RIGHT_BUTTON_LIGHT_PIN, LOW);
       digitalWrite(WORT_PUMP_PIN, LOW);
-      digitalWrite(ALARM, LOW);
+      digitalWrite(ALARM_PIN, LOW);
     }
 
     // If Mash Probe then do three "dashes"
     if (digitalRead(MASH_PROBE_PIN) == HIGH) {
       int counter = 0;
       while(counter < 3) {
-        digitalWrite(BUZZER, HIGH);
+        digitalWrite(BUZZER_PIN, HIGH);
         delay(350);
-        digitalWrite(BUZZER, LOW);
+        digitalWrite(BUZZER_PIN, LOW);
         delay(350);
         counter++;
       }
     } else {
-      digitalWrite(BUZZER, LOW);
+      digitalWrite(BUZZER_PIN, LOW);
     }
 
     // If Boil Probe then do three "dots"
     if (digitalRead(BOIL_PROBE_PIN) == HIGH) {
       int counter = 0;
       while(counter < 3) {
-        digitalWrite(BUZZER, HIGH);
+        digitalWrite(BUZZER_PIN, HIGH);
         delay(75);
-        digitalWrite(BUZZER, LOW);
+        digitalWrite(BUZZER_PIN, LOW);
         delay(450);
         counter++;
       }
     } else {
-      digitalWrite(BUZZER, LOW);
+      digitalWrite(BUZZER_PIN, LOW);
     }
+    */
+  } else {
+    // NOT in test mode
+    // Update objects
+    LeftButton.Update(currentMillis);
+    RightButton.Update(currentMillis);
+  
+    // Set pump active based on their buttons
+    WaterPump.SetIsActive(LeftButton.GetMatchingFunctionOn());
+    WortPump.SetIsActive(RightButton.GetMatchingFunctionOn());
+  
+    MashProbe.Update(currentMillis);
+    MashProbeHigh.Update(currentMillis);
+    BoilProbe.Update(currentMillis);
+  
+    WaterPump.Update(currentMillis, MashProbe, MashProbeHigh);
+    WortPump.Update(currentMillis, BoilProbe);
+
+    Alarm.Update(currentMillis);
+    Buzzer.Update(currentMillis);
   }
+}
 
-  // Update objects
-  LeftButton.Update(currentMillis, BUZZER);
-  RightButton.Update(currentMillis, BUZZER);
+void TestInteractions() {
+  if (LeftButton.IsCurrentlyDepressed()) {
+      digitalWrite(LEFT_BUTTON_LIGHT_PIN, HIGH);
+      digitalWrite(WATER_PUMP_PIN, HIGH);
+      digitalWrite(BUZZER_PIN, HIGH);
+    } else {
+      digitalWrite(LEFT_BUTTON_LIGHT_PIN, LOW);
+      digitalWrite(WATER_PUMP_PIN, LOW);
+      digitalWrite(BUZZER_PIN, LOW);
+    }
 
-  // Set pump active based on their buttons
-  WaterPump.SetIsActive(LeftButton.GetMatchingFunctionOn());
-  WortPump.SetIsActive(RightButton.GetMatchingFunctionOn());
+    if (RightButton.IsCurrentlyDepressed()) {
+      digitalWrite(RIGHT_BUTTON_LIGHT_PIN, HIGH);
+      digitalWrite(WORT_PUMP_PIN, HIGH);
+      digitalWrite(ALARM_PIN, HIGH);
+    } else {
+      digitalWrite(RIGHT_BUTTON_LIGHT_PIN, LOW);
+      digitalWrite(WORT_PUMP_PIN, LOW);
+      digitalWrite(ALARM_PIN, LOW);
+    }
 
-  MashProbe.Update(currentMillis);
-  MashProbeHigh.Update(currentMillis);
-  BoilProbe.Update(currentMillis);
+    // If Mash Probe then do three "dashes"
+    if (digitalRead(MASH_PROBE_PIN) == HIGH) {
+      int counter = 0;
+      while(counter < 3) {
+        digitalWrite(BUZZER_PIN, HIGH);
+        delay(350);
+        digitalWrite(BUZZER_PIN, LOW);
+        delay(350);
+        counter++;
+      }
+    }
+    //else if (!LeftButton.IsCurrentlyDepressed()) {
+    //  digitalWrite(BUZZER_PIN, LOW);
+    //}
 
-  WaterPump.Update(currentMillis, MashProbe, MashProbeHigh);
-  WortPump.Update(currentMillis, BoilProbe);
+    // If Boil Probe then do three "dots"
+    if (digitalRead(BOIL_PROBE_PIN) == HIGH) {
+      int counter = 0;
+      while(counter < 3) {
+        digitalWrite(BUZZER_PIN, HIGH);
+        delay(75);
+        digitalWrite(BUZZER_PIN, LOW);
+        delay(450);
+        counter++;
+      }
+    }
+    //else {
+    //  digitalWrite(BUZZER_PIN, LOW);
+    //}
 }
 
