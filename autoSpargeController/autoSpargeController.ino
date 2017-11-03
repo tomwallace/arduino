@@ -42,39 +42,7 @@ class Loggable {
 
 
 // TODO: Add updateable interface with debug added and forces Update method
-/*
- * EventQueue is a simple class that tracks events (non-duplicate) and informs if any events are in the queue.
- */
- /*
-class EventQueue2 : Loggable {
-  private: String _queue;
-  private: String _queueName;
-  
-  public: EventQueue2(String queueName) {
-    _queue = "";
-    _queueName = queueName;
-  };
 
-  void AddEvent(String event) {
-    // If event is not already on queue, add it
-    if (_queue.indexOf(event) == -1) {
-      Log(9999, _queueName, "Adding event " + event);
-      _queue = _queue + event;
-      Log(9999, _queueName, "Queue now " + _queue);
-    }
-  }
-
-  void RemoveEvent(String event) {
-    //Log(9999, _queueName, "Removing event " + event);
-    _queue.replace(event, "");
-    //Log(9999, _queueName, "Queue now " + _queue);
-  }
-
-  bool IsPopulated() {
-    return (_queue.length() > 0);
-  }
-};
-*/
 /*
  * The Beeper class represents a sound output, such as the alarm or buzzer.  The sound is controlled 
  * by an EventQueue.
@@ -102,7 +70,6 @@ class Beeper : Loggable {
     int OriginalState = _currentState;
     
     if (_eventQueue->IsPopulated()) {
-      Log(currentMillis, _beeperName, "State is populated");
       digitalWrite(_outputPin, SOUND);
       _currentState = SOUND;
     } else {
@@ -165,6 +132,7 @@ class WortPump : Loggable {
   long OnInterval; // Milliseconds in a minute the pump is on
   long OffInterval; // Milliseconds in a minute the pump is off
   bool IsActive;   // Toggle to let overrides stop pump
+  bool IsAlarmForToggle;  // Used to alternate the alarm when probe is touching
 
   // Members to detail state
   int CurrentState;
@@ -180,6 +148,7 @@ class WortPump : Loggable {
     OnInterval = onInterval;
     OffInterval = 60000 - onInterval;
     IsActive = true;
+    IsAlarmForToggle = true;
 
     CurrentState = PUMP_OFF;  // Pump starts off
     previousMillis = 0;
@@ -226,14 +195,19 @@ class WortPump : Loggable {
       }
     }
 
-    // Handle pulsing alarm every 2 seconds if probe is touching
+    // Handle pulsing alarm every 0.5 seconds if probe is touching
     if (boilProbe.IsTouching() && IsActive) {
       // TODO: Consider changing to pulsing it works
-      //bool canToggle = (currentMillis % 2000) == 0;
-      //if (canToggle) {
-      //  CurrentAlarmState = CurrentAlarmState == ALARM_SOUND ? ALARM_SILENT : ALARM_SOUND;
-      //}
-      _alarmEventQueue->AddEvent("BoilProbe");
+      bool canToggle = (currentMillis % 500) == 0;
+      if (canToggle) {
+        IsAlarmForToggle = IsAlarmForToggle ? false : true;
+        Log(currentMillis, "AlarmState", "State has changed to " + IsAlarmForToggle); 
+      }
+      if (IsAlarmForToggle) {
+        _alarmEventQueue->AddEvent("BoilProbe");
+      } else {
+        _alarmEventQueue->RemoveEvent("BoilProbe");
+      }
     } else {
       _alarmEventQueue->RemoveEvent("BoilProbe");
     }
@@ -455,58 +429,8 @@ void loop() {
   // Test mode routine - only way to get out is to cycle power or reset and LeftButton is NOT pushed
   if (InTestMode) {
     TestInteractions();
-    /*
-    if (LeftButton.IsCurrentlyDepressed()) {
-      digitalWrite(LEFT_BUTTON_LIGHT_PIN, HIGH);
-      digitalWrite(WATER_PUMP_PIN, HIGH);
-      digitalWrite(BUZZER_PIN, HIGH);
-    } else {
-      digitalWrite(LEFT_BUTTON_LIGHT_PIN, LOW);
-      digitalWrite(WATER_PUMP_PIN, LOW);
-      digitalWrite(BUZZER_PIN, LOW);
-    }
-
-    if (RightButton.IsCurrentlyDepressed()) {
-      digitalWrite(RIGHT_BUTTON_LIGHT_PIN, HIGH);
-      digitalWrite(WORT_PUMP_PIN, HIGH);
-      digitalWrite(ALARM_PIN, HIGH);
-    } else {
-      digitalWrite(RIGHT_BUTTON_LIGHT_PIN, LOW);
-      digitalWrite(WORT_PUMP_PIN, LOW);
-      digitalWrite(ALARM_PIN, LOW);
-    }
-
-    // If Mash Probe then do three "dashes"
-    if (digitalRead(MASH_PROBE_PIN) == HIGH) {
-      int counter = 0;
-      while(counter < 3) {
-        digitalWrite(BUZZER_PIN, HIGH);
-        delay(350);
-        digitalWrite(BUZZER_PIN, LOW);
-        delay(350);
-        counter++;
-      }
-    } else {
-      digitalWrite(BUZZER_PIN, LOW);
-    }
-
-    // If Boil Probe then do three "dots"
-    if (digitalRead(BOIL_PROBE_PIN) == HIGH) {
-      int counter = 0;
-      while(counter < 3) {
-        digitalWrite(BUZZER_PIN, HIGH);
-        delay(75);
-        digitalWrite(BUZZER_PIN, LOW);
-        delay(450);
-        counter++;
-      }
-    } else {
-      digitalWrite(BUZZER_PIN, LOW);
-    }
-    */
   } else {
-    // NOT in test mode
-    // Update objects
+    // NORMAL - Update objects
     LeftButton.Update(currentMillis);
     RightButton.Update(currentMillis);
   
@@ -558,9 +482,6 @@ void TestInteractions() {
         counter++;
       }
     }
-    //else if (!LeftButton.IsCurrentlyDepressed()) {
-    //  digitalWrite(BUZZER_PIN, LOW);
-    //}
 
     // If Boil Probe then do three "dots"
     if (digitalRead(BOIL_PROBE_PIN) == HIGH) {
@@ -573,8 +494,5 @@ void TestInteractions() {
         counter++;
       }
     }
-    //else {
-    //  digitalWrite(BUZZER_PIN, LOW);
-    //}
 }
 
