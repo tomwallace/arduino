@@ -21,16 +21,16 @@
 // Define Pins
 #define TRINKET_BOARD_LED_PIN 13
 #define ALARM_PIN 8 //8
-#define BUZZER_PIN 11 //*9 //11
+#define BUZZER_PIN 9 //11
 #define LEFT_BUTTON_PIN 4 //4
 #define LEFT_BUTTON_LIGHT_PIN 6 //6
 #define RIGHT_BUTTON_PIN 3 //3
 #define RIGHT_BUTTON_LIGHT_PIN 5 //5
 #define MASH_PROBE_PIN 16 //16
 #define MASH_PROBE_HIGH_PIN 17 //17
-#define BOIL_PROBE_PIN 15 //*12 //15
-#define WATER_PUMP_PIN 13 //*10 //13
-#define WORT_PUMP_PIN 12 //*11 //12
+#define BOIL_PROBE_PIN 12 //15
+#define WATER_PUMP_PIN 10 //13
+#define WORT_PUMP_PIN 11 //12
 
 // Create objects
 EventQueue AlarmEventQueue("AlarmEventQueue");
