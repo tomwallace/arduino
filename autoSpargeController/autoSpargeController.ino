@@ -1,4 +1,8 @@
+#include "Beeper.h"
 #include "EventQueue.h"
+#include "Loggable.h"   // TODO: Eventually will not be needed
+#include "Probe.h"
+
 /*
  * AUTOSPARGE CONTROLLER
  * version 0.6
@@ -29,95 +33,7 @@
 #define ALARM_SOUND HIGH
 #define ALARM_SILENT LOW
 
-/*
- * The Logging base class manages sending logging messages out to the serial port
- */
-class Loggable {
-  public: Logger() {};
-  
-  void Log(long currentMillis, String callingObjName, String msg) {
-    Serial.println(String(currentMillis) + " - " + callingObjName + ": " + msg);
-  }
-};
-
-
 // TODO: Add updateable interface with debug added and forces Update method
-
-/*
- * The Beeper class represents a sound output, such as the alarm or buzzer.  The sound is controlled 
- * by an EventQueue.
- */
-class Beeper : Loggable {
-  private: int _outputPin;
-  private: EventQueue * _eventQueue;
-  private: int _currentState;
-  private: String _beeperName;
-  
-  private: int SOUND = HIGH;
-  private: int SILENT = LOW;
-
-  public: Beeper(String beeperName, int outputPin, EventQueue * eventQueue) {
-    _beeperName = beeperName;
-    _outputPin = outputPin;
-    _eventQueue = eventQueue;
-
-    pinMode(_outputPin, OUTPUT);
-    digitalWrite(_outputPin, SILENT);
-    _currentState = SILENT;
-  }
-
-  void Update(long currentMillis) {
-    int OriginalState = _currentState;
-    
-    if (_eventQueue->IsPopulated()) {
-      digitalWrite(_outputPin, SOUND);
-      _currentState = SOUND;
-    } else {
-      digitalWrite(_outputPin, SILENT);
-      _currentState = SILENT;
-    }
-      
-    // If state changed, then log
-    if (_currentState != OriginalState) {
-      String state = _currentState == SOUND ? "SOUNDING" : "SILENT";
-      Log(currentMillis, _beeperName, "State has changed to " + state); 
-    }
-  }
-};
-
-/*
- * The Probe class creates a probe input.  Its inputType specifies if it is INPUT or INPUT_PULLUP
- */
-class Probe : Loggable {
-  int PROBE_CLEAR = LOW;
-  int PROBE_TOUCH_LIQUID = HIGH;
-  String ProbeName;
-  int CurrentState = PROBE_CLEAR;
-  
-  int InputPin;   // The pin number that receives probe input
-
-  // Constructor - inputType should be INPUT or INPUT_PULLUP
-  public: Probe(String probeName, int inputPin, int inputType) {
-    InputPin = inputPin;
-    ProbeName = probeName;
-    pinMode(InputPin, inputType);
-  }
-
-  bool IsTouching() {
-    return (CurrentState == PROBE_TOUCH_LIQUID);
-  }
-
-  void Update(long currentMillis) {
-    int OriginalState = CurrentState;
-    CurrentState = digitalRead(InputPin);
-    
-    // If state changed, then log
-    if (CurrentState != OriginalState) {
-      String state = CurrentState == PROBE_TOUCH_LIQUID ? "TOUCH LIQUID" : "CLEAR";
-      Log(currentMillis, ProbeName, "State has changed to " + state); 
-    }
-  }
-};
 
 /*
  * The WortPump class interacts with the various aspects of the controllers use of the wart pump.
