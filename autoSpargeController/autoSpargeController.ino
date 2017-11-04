@@ -1,11 +1,13 @@
 #include "Beeper.h"
+#include "Button.h"
 #include "EventQueue.h"
-#include "Loggable.h"   // TODO: Eventually will not be needed
 #include "Probe.h"
+#include "WaterPump.h"
+#include "WortPump.h"
 
 /*
  * AUTOSPARGE CONTROLLER
- * version 0.6
+ * version 1.0
  * by Tom Wallace and John Baker
  * This sketch controls the components hooked up to the Auto Sparge assembly, which controls the rate 
  * of sparge water going into the mash tun and the rate of wort leaving the mash tun.  It is designed to
@@ -30,260 +32,6 @@
 #define WATER_PUMP_PIN 13 //*10 //13
 #define WORT_PUMP_PIN 12 //*11 //12
 
-#define ALARM_SOUND HIGH
-#define ALARM_SILENT LOW
-
-// TODO: Add updateable interface with debug added and forces Update method
-
-/*
- * The WortPump class interacts with the various aspects of the controllers use of the wart pump.
- */
-class WortPump : Loggable {
-  int PUMP_ON = HIGH;
-  int PUMP_OFF = LOW;
-
-  private: EventQueue * _alarmEventQueue;
-  
-  int OutputPin;   // The pin number that control pump output
-  long OnInterval; // Milliseconds in a minute the pump is on
-  long OffInterval; // Milliseconds in a minute the pump is off
-  bool IsActive;   // Toggle to let overrides stop pump
-  bool IsAlarmForToggle;  // Used to alternate the alarm when probe is touching
-
-  // Members to detail state
-  int CurrentState;
-  unsigned long previousMillis;  // Stores the last time the state changed
-  
-  // Constructor
-  public: WortPump(int outputPin, long onInterval, EventQueue * alarmEventQueue) {
-    OutputPin = outputPin;
-    pinMode(OutputPin, OUTPUT);
-
-    _alarmEventQueue = alarmEventQueue;
-    
-    OnInterval = onInterval;
-    OffInterval = 60000 - onInterval;
-    IsActive = true;
-    IsAlarmForToggle = true;
-
-    CurrentState = PUMP_OFF;  // Pump starts off
-    previousMillis = 0;
-  }
-
-  void SetIsActive(bool isActive) {
-    IsActive = isActive;
-  }
-
-  bool GetIsActive() {
-    return IsActive;
-  }
-
-  // Adds a second that the pump is on each minute
-  void AddSecondOn() {
-    OnInterval = OnInterval + 1000;
-    OffInterval = OffInterval - 1000;
-  }
-
-  // Subtracts a second that the pump is on each minute
-  void SubtractsSecondOn() {
-    OnInterval = OnInterval - 1000;
-    OffInterval = OffInterval + 1000;
-  }
-
-  void Update(long currentMillis, Probe boilProbe) {
-    int OriginalState = CurrentState;
-    
-    // If probe is contacting liquid, pump is always off
-    if (boilProbe.IsTouching() || ! IsActive) {
-      CurrentState = PUMP_OFF;
-      digitalWrite(OutputPin, CurrentState);
-    } else {
-      if ((CurrentState == PUMP_OFF) && (currentMillis - previousMillis >= OffInterval)) { 
-        previousMillis = currentMillis;
-  
-        CurrentState = PUMP_ON;
-        digitalWrite(OutputPin, CurrentState);
-      } else if ((CurrentState == PUMP_ON) && (currentMillis - previousMillis >= OnInterval)) { 
-        previousMillis = currentMillis;
-  
-        CurrentState = PUMP_OFF;
-        digitalWrite(OutputPin, CurrentState);
-      }
-    }
-
-    // Handle pulsing alarm every 0.5 seconds if probe is touching
-    if (boilProbe.IsTouching() && IsActive) {
-      // TODO: Consider changing to pulsing it works
-      bool canToggle = (currentMillis % 500) == 0;
-      if (canToggle) {
-        IsAlarmForToggle = IsAlarmForToggle ? false : true;
-        Log(currentMillis, "AlarmState", "State has changed to " + IsAlarmForToggle); 
-      }
-      if (IsAlarmForToggle) {
-        _alarmEventQueue->AddEvent("BoilProbe");
-      } else {
-        _alarmEventQueue->RemoveEvent("BoilProbe");
-      }
-    } else {
-      _alarmEventQueue->RemoveEvent("BoilProbe");
-    }
-    
-    // If state changed, then log
-    if (CurrentState != OriginalState) {
-      String state = CurrentState == PUMP_ON ? "ON" : "OFF";
-      Log(currentMillis, "Wort Pump", "State has changed to " + state); 
-    }
-  }
-};
-
-/*
- * The WaterPump class interacts with the various aspects of the controllers use of the water pump.
- */
-class WaterPump : Loggable {
-  int PUMP_ON = HIGH;
-  int PUMP_OFF = LOW;
-
-  private: EventQueue * _alarmEventQueue;
-  
-  int OutputPin;   // The pin number that control pump output
-  bool IsActive;   // Toggle to let overrides stop pump
-  long Delay;      // Milliseconds of delay after change of state from probe
-
-  // Members to detail state
-  int CurrentState;
-  int CurrentAlarmState;
-  unsigned long previousMillis;  // Stores the last time the state changed
-  
-  // Constructor
-  public: WaterPump(int outputPin, long delay, EventQueue * alarmEventQueue) {
-    OutputPin = outputPin;
-    pinMode(OutputPin, OUTPUT);
-
-    _alarmEventQueue = alarmEventQueue;
-    
-    Delay = delay;
-    IsActive = true;
-
-    CurrentState = PUMP_OFF;  // Pump starts off
-    CurrentAlarmState = ALARM_SILENT;
-    previousMillis = 0;
-  }
-  
-  void SetIsActive(bool isActive) {
-    IsActive = isActive;
-  }
-
-  bool GetIsActive() {
-    return IsActive;
-  }
-
-  void Update(long currentMillis, Probe mashProbe, Probe mashProbeHigh) {
-    int OriginalState = CurrentState;
-    
-    // If probe is contacting liquid, pump is always off
-    if (mashProbe.IsTouching() || ! IsActive) {
-      previousMillis = currentMillis;
-      
-      CurrentState = PUMP_OFF;
-      digitalWrite(OutputPin, CurrentState);
-    } else {
-      if (currentMillis - previousMillis >= Delay) { 
-        previousMillis = currentMillis;
-  
-        CurrentState = PUMP_ON;
-        digitalWrite(OutputPin, CurrentState);
-      }
-    }
-
-    // Sound alarm if high level probe contacting liquid
-    if (mashProbeHigh.IsTouching() && IsActive) {
-      _alarmEventQueue->AddEvent("MashProbeHigh");
-    } else {
-      _alarmEventQueue->RemoveEvent("MashProbeHigh");
-    }
-
-    // If state changed, then log
-    if (CurrentState != OriginalState) {
-      String state = CurrentState == PUMP_ON ? "ON" : "OFF";
-      Log(currentMillis, "Water Pump", "State has changed to " + state); 
-    }
-  }
-};
-
-class Button : Loggable {
-  int BUTTON_BEEP_LENGTH = 10;  // Length of beep when button pressed
-  int HAS_BEEN_CLICKED_DELAY = 500; // Length of delay before button is eligible for clicking again (prevents burst by holding button down)
-
-  private: EventQueue * _buzzerEventQueue;
-
-  String ButtonName;  // Name of the button for logging
-  int ButtonPin;  // The pin number attached to the button
-  int LightPin;  // The pin the button light is attached to
-  long TurnOffClickSoundMillis;  // When to turn off the click sound
-  bool EligibleToBeClicked; // Used with delay to prevent "burst" clicking
-  long EligibleToBeClickedMillis; // To determine when to set the EligibleToBeClicked flag
-
-  bool MatchingFunctionOn;  // Used to pair the button with a pump function
-
-  // Constructor - inputType should be INPUT or INPUT_PULLUP
-  public: Button(String buttonName, int buttonPin, int inputType, int lightPin, EventQueue * buzzerEventQueue) {
-    ButtonName = buttonName;
-    ButtonPin = buttonPin;
-    LightPin = lightPin;
-    _buzzerEventQueue = buzzerEventQueue;
-    
-    pinMode(ButtonPin, inputType);
-    pinMode(LightPin, OUTPUT);
-    TurnOffClickSoundMillis = 0;
-    EligibleToBeClicked = true;
-    EligibleToBeClickedMillis = 0;
-    MatchingFunctionOn = false;
-  }
-  
-  bool IsCurrentlyDepressed() {
-    return (digitalRead(ButtonPin) == LOW);
-  }
-
-  bool GetMatchingFunctionOn() {
-    return MatchingFunctionOn;
-  }
-
-  void Update(long currentMillis) {    
-    // Determine if button has been clicked
-    if (IsCurrentlyDepressed() && EligibleToBeClicked) {
-      // Log click
-      Log(currentMillis, ButtonName, "currently pushed.");
-      
-      EligibleToBeClicked = false;
-      EligibleToBeClickedMillis = currentMillis + HAS_BEEN_CLICKED_DELAY;
-
-      // Sound click on button
-      _buzzerEventQueue->AddEvent(ButtonName);
-      TurnOffClickSoundMillis = currentMillis + BUTTON_BEEP_LENGTH;
-      
-      // Toggle light and matching function
-      MatchingFunctionOn = MatchingFunctionOn ? false : true;
-    }
-
-    // Determine when button is eligible to be clicked again to prevent button bursting
-    if (!IsCurrentlyDepressed() && (currentMillis > EligibleToBeClickedMillis)) {
-      EligibleToBeClicked = true;
-    }
-
-    // Turn off sound click when ready
-    if (currentMillis > TurnOffClickSoundMillis) {
-      _buzzerEventQueue->RemoveEvent(ButtonName);
-    }
-    
-    // Handle light on/off
-    if (MatchingFunctionOn) {
-      digitalWrite(LightPin, HIGH);
-    } else {
-      digitalWrite(LightPin, LOW);
-    }
-  }
-};
-
 // Create objects
 EventQueue AlarmEventQueue("AlarmEventQueue");
 EventQueue BuzzerEventQueue("BuzzerEventQueue");
@@ -298,8 +46,8 @@ Probe MashProbe("Mash Probe", MASH_PROBE_PIN, INPUT);
 Probe MashProbeHigh("Mash Probe High", MASH_PROBE_HIGH_PIN, INPUT);
 Probe BoilProbe("Boil Probe", BOIL_PROBE_PIN, INPUT);
 
-WaterPump WaterPump(WATER_PUMP_PIN, 10000, &AlarmEventQueue);
-WortPump WortPump(WORT_PUMP_PIN, 2000, &AlarmEventQueue);
+WaterPump WaterPump(WATER_PUMP_PIN, 10000, &AlarmEventQueue, &MashProbe, &MashProbeHigh);
+WortPump WortPump(WORT_PUMP_PIN, 2000, &AlarmEventQueue, &BoilProbe);
 
 // Initalize general use variables
 bool FirstTimeThroughCode = true;
@@ -358,8 +106,8 @@ void loop() {
     MashProbeHigh.Update(currentMillis);
     BoilProbe.Update(currentMillis);
   
-    WaterPump.Update(currentMillis, MashProbe, MashProbeHigh);
-    WortPump.Update(currentMillis, BoilProbe);
+    WaterPump.Update(currentMillis);
+    WortPump.Update(currentMillis);
 
     Alarm.Update(currentMillis);
     Buzzer.Update(currentMillis);
