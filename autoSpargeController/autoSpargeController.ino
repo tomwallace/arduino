@@ -147,6 +147,13 @@ void TestInteractions() {
       }
     }
 
+    // If Mash Probe High then Trinket LED
+    if (digitalRead(MASH_PROBE_HIGH_PIN) == HIGH) {
+      digitalWrite(TRINKET_BOARD_LED_PIN, HIGH);
+    } else {
+      digitalWrite(TRINKET_BOARD_LED_PIN, LOW);
+    } 
+
     // If Boil Probe then do three "dots"
     if (digitalRead(BOIL_PROBE_PIN) == HIGH) {
       int counter = 0;
