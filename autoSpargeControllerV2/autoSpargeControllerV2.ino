@@ -3,13 +3,12 @@
 #include <utility/Adafruit_MCP23017.h>
 #include "Adafruit_MPRLS.h"
 
-// TODO: Alter the includes to be live
-//#include "Beeper.h"
-//#include "Button.h"
-//#include "EventQueue.h"
-//#include "Probe.h"
-//#include "WaterPump.h"
-//#include "WortPump.h"
+#include "Beeper.h"
+#include "Button.h"
+#include "EventQueue.h"
+#include "Probe.h"
+#include "WaterPump.h"
+#include "WortPump.h"
 
 /* TODO: Evaluate instructions to see if still accurate.
  * AUTOSPARGE CONTROLLER
@@ -32,6 +31,18 @@
 // Define Pins
 #define RESET_PIN -1  // set to any GPIO pin # to hard-reset on begin()
 #define EOC_PIN -1  // set to any GPIO pin to read end-of-conversion by pin
+#define TRINKET_BOARD_LED_PIN 13
+#define ALARM_PIN 8 //8
+#define BUZZER_PIN 9 //11
+#define LEFT_BUTTON_PIN 4 //4
+#define LEFT_BUTTON_LIGHT_PIN 6 //6
+#define RIGHT_BUTTON_PIN 3 //3
+#define RIGHT_BUTTON_LIGHT_PIN 5 //5
+#define MASH_PROBE_PIN 16 //16
+#define MASH_PROBE_HIGH_PIN 17 //17
+#define BOIL_PROBE_PIN 12 //15
+#define WATER_PUMP_PIN 10 //13
+#define WORT_PUMP_PIN 11 //12
 
 // Define Colors
 // TODO: Remove those not needed
@@ -52,6 +63,22 @@
 Adafruit_MPRLS mpr = Adafruit_MPRLS(RESET_PIN, EOC_PIN);
 Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 
+EventQueue AlarmEventQueue("AlarmEventQueue");
+EventQueue BuzzerEventQueue("BuzzerEventQueue");
+
+Beeper Alarm("Alarm", ALARM_PIN, &AlarmEventQueue);
+Beeper Buzzer("Buzzer", BUZZER_PIN, &BuzzerEventQueue);
+
+Button LeftButton("Left Button", LEFT_BUTTON_PIN, INPUT_PULLUP, LEFT_BUTTON_LIGHT_PIN, &BuzzerEventQueue);
+Button RightButton("Right Button", RIGHT_BUTTON_PIN, INPUT_PULLUP, RIGHT_BUTTON_LIGHT_PIN, &BuzzerEventQueue);
+
+Probe MashProbe("Mash Probe", MASH_PROBE_PIN, INPUT);
+Probe MashProbeHigh("Mash Probe High", MASH_PROBE_HIGH_PIN, INPUT);
+Probe BoilProbe("Boil Probe", BOIL_PROBE_PIN, INPUT);
+
+WaterPump WaterPump(WATER_PUMP_PIN, 10000, &AlarmEventQueue, &MashProbe, &MashProbeHigh);
+WortPump WortPump(WORT_PUMP_PIN, 2000, &AlarmEventQueue, &BoilProbe);
+
 // Global variables
 bool initializeComplete = false;
 int mode = -1;
@@ -61,6 +88,11 @@ int endInitTime = 0;
 // Setup code only runs once
 // TODO: Break into private methods if helps with organization
 void setup() {
+  pinMode(TRINKET_BOARD_LED_PIN, OUTPUT);
+  // Set up serial port for output at 9600 bps
+  // TODO: Figure out why serial output is not writing
+  Serial.begin(9600);
+  
   mpr.begin();
   lcd.begin(16, 2);
   lcd.setBacklight(GREEN);
@@ -102,45 +134,12 @@ void setup() {
 
 // Main code that runs as a state machine
 void loop() {
-  int currTime = millis();
+  // Get current clock
+  unsigned long currentMillis = millis();
   
   if (!initializeComplete) {
-    // Selection of operating mode - defaults to Autosparge 1.0
-    lcd.setBacklight(GREEN);
-    lcd.setCursor(0,0);
-    lcd.print("Select for 2.0");
-    lcd.setCursor(0,1);
-    lcd.print("Left for TEST");
-
-    // Check if "Select" button is pressed
-    uint8_t buttons = lcd.readButtons();
-    if (buttons) {
-      if (buttons & BUTTON_SELECT) {
-        initializeComplete = true;
-        mode = V2_MODE;
-        lcd.clear();
-        return;
-      }
-      if (buttons & BUTTON_LEFT) {
-        initializeComplete = true;
-        mode = TEST_MODE;
-        lcd.clear();
-        return;
-      }
-    }
-
-    // Our countdown is over
-    if (currTime > endInitTime) {
-      initializeComplete = true;
-      mode = V1_MODE;
-      lcd.clear();
-      return;
-    }
-    int currTimeDisplay = (endInitTime - currTime)/1000;
-    
-    lcd.setCursor(15,1);
-    lcd.print(currTimeDisplay);
-    return;    
+    Initialize(currentMillis);
+    return;
   }
 
   // Use legacy Version 1.0
@@ -148,96 +147,7 @@ void loop() {
     lcd.setBacklight(VIOLET);
     lcd.setCursor(0, 0);
     lcd.print("Using V1.0");
-  } else if (mode == V2_MODE) {
-    lcd.setBacklight(BLUE);
-    lcd.setCursor(0, 0);
-    lcd.print("Using V2.0");
-  } else if (mode == TEST_MODE) {
-    lcd.setBacklight(RED);
-    lcd.setCursor(0, 0);
-    lcd.print("TEST Mode");
-  }
 
-}
-
-/* ORIGINAL CODE
-// Define Pins
-#define TRINKET_BOARD_LED_PIN 13
-#define ALARM_PIN 8 //8
-#define BUZZER_PIN 9 //11
-#define LEFT_BUTTON_PIN 4 //4
-#define LEFT_BUTTON_LIGHT_PIN 6 //6
-#define RIGHT_BUTTON_PIN 3 //3
-#define RIGHT_BUTTON_LIGHT_PIN 5 //5
-#define MASH_PROBE_PIN 16 //16
-#define MASH_PROBE_HIGH_PIN 17 //17
-#define BOIL_PROBE_PIN 12 //15
-#define WATER_PUMP_PIN 10 //13
-#define WORT_PUMP_PIN 11 //12
-
-// Create objects
-EventQueue AlarmEventQueue("AlarmEventQueue");
-EventQueue BuzzerEventQueue("BuzzerEventQueue");
-
-Beeper Alarm("Alarm", ALARM_PIN, &AlarmEventQueue);
-Beeper Buzzer("Buzzer", BUZZER_PIN, &BuzzerEventQueue);
-
-Button LeftButton("Left Button", LEFT_BUTTON_PIN, INPUT_PULLUP, LEFT_BUTTON_LIGHT_PIN, &BuzzerEventQueue);
-Button RightButton("Right Button", RIGHT_BUTTON_PIN, INPUT_PULLUP, RIGHT_BUTTON_LIGHT_PIN, &BuzzerEventQueue);
-
-Probe MashProbe("Mash Probe", MASH_PROBE_PIN, INPUT);
-Probe MashProbeHigh("Mash Probe High", MASH_PROBE_HIGH_PIN, INPUT);
-Probe BoilProbe("Boil Probe", BOIL_PROBE_PIN, INPUT);
-
-WaterPump WaterPump(WATER_PUMP_PIN, 10000, &AlarmEventQueue, &MashProbe, &MashProbeHigh);
-WortPump WortPump(WORT_PUMP_PIN, 2000, &AlarmEventQueue, &BoilProbe);
-
-// Initalize general use variables
-bool FirstTimeThroughCode = true;
-bool InTestMode = false;
-
-// put your setup code here, to run once:
-void setup() {
-  pinMode(TRINKET_BOARD_LED_PIN, OUTPUT);
-
-  // Set up serial port for output at 9600 bps
-  Serial.begin(9600);
-}
-
-// put your main code here, to run repeatedly:
-void loop() {
-  // Get current clock
-  unsigned long currentMillis = millis();
-
-  // Will only be run in first millisecond of code - used for Test mode evaluation
-  if (FirstTimeThroughCode) {
-    FirstTimeThroughCode = false;
-    // Puts us in Test mode - only way to get out is to cycle power or reset and LeftButton is NOT pushed
-    if (LeftButton.IsCurrentlyDepressed()) {
-      Serial.println(String(currentMillis) + " - Start-up: Entering test mode");
-      InTestMode = true;
-
-      // Flash buttons
-      int counter = 0;
-      while(counter < 3) {
-        digitalWrite(LEFT_BUTTON_LIGHT_PIN, HIGH);
-        digitalWrite(RIGHT_BUTTON_LIGHT_PIN, HIGH);
-        digitalWrite(TRINKET_BOARD_LED_PIN, HIGH);
-        delay(250);
-        digitalWrite(LEFT_BUTTON_LIGHT_PIN, LOW);
-        digitalWrite(RIGHT_BUTTON_LIGHT_PIN, LOW);
-        digitalWrite(TRINKET_BOARD_LED_PIN, LOW);
-        delay(250);
-        counter++;
-      }
-    }
-  }
-
-  // Test mode routine - only way to get out is to cycle power or reset and LeftButton is NOT pushed
-  if (InTestMode) {
-    TestInteractions();
-  } else {
-    // NORMAL - Update objects
     LeftButton.Update(currentMillis);
     RightButton.Update(currentMillis);
   
@@ -254,10 +164,65 @@ void loop() {
 
     Alarm.Update(currentMillis);
     Buzzer.Update(currentMillis);
+
+  // Use new Version 2.0 code
+  // TODO: Add menus and other methods of working - needs to work with existing code
+  } else if (mode == V2_MODE) {
+    lcd.setBacklight(BLUE);
+    lcd.setCursor(0, 0);
+    lcd.print("Using V2.0");
+
+  // Work in TEST mode
+  } else if (mode == TEST_MODE) {
+    TestInteractions();
   }
+
 }
 
+// Initialize with button options to determine running mode
+void Initialize(long currentMillis) {
+  lcd.setBacklight(GREEN);
+  lcd.setCursor(0,0);
+  lcd.print("Select for 2.0");
+  lcd.setCursor(0,1);
+  lcd.print("Left for TEST");
+
+  // Check if "Select" button is pressed
+  uint8_t buttons = lcd.readButtons();
+  if (buttons) {
+    if (buttons & BUTTON_SELECT) {
+      initializeComplete = true;
+      mode = V2_MODE;
+      lcd.clear();
+      return;
+    }
+    if (buttons & BUTTON_LEFT) {
+      initializeComplete = true;
+      mode = TEST_MODE;
+      lcd.clear();
+      return;
+    }
+  }
+
+  // Our countdown is over - default to Auto Sparge 1.0
+  if (currentMillis > endInitTime) {
+    initializeComplete = true;
+    mode = V1_MODE;
+    lcd.clear();
+    return;
+  }
+  int currTimeDisplay = (endInitTime - currentMillis)/1000;
+  
+  lcd.setCursor(15,1);
+  lcd.print(currTimeDisplay);
+}
+
+// Version 1.0 TEST Mode
 void TestInteractions() {
+  lcd.setBacklight(RED);
+  lcd.setCursor(0, 0);
+  lcd.print("TEST Mode v1.0");
+    
   if (LeftButton.IsCurrentlyDepressed()) {
       digitalWrite(LEFT_BUTTON_LIGHT_PIN, HIGH);
       digitalWrite(WATER_PUMP_PIN, HIGH);
@@ -309,4 +274,3 @@ void TestInteractions() {
       }
     }
 }
-*/
