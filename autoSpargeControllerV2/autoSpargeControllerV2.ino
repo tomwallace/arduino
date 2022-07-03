@@ -81,9 +81,25 @@ WortPump WortPump(WORT_PUMP_PIN, 2000, &AlarmEventQueue, &BoilProbe);
 
 // Global variables
 bool initializeComplete = false;
-int mode = -1;
-int startTime = V1_MODE;  // Default to existing behavior
+int mode = V1_MODE;  // Default to existing behavior
+int startTime = 0;  
 int endInitTime = 0;
+float boilStopOne = 4;  // Provides default for pause boil to turn off sparge
+float boilStopTwo = 7.5;  // Provide default for complete boil stop level
+bool boilShowGallons = true;  // Provide default for display in gallons
+
+// Menu control variables
+int readKey;
+String menuItems[] = {"Home", "Boil Stop 1", "Boil Stop 2", "Display Units"};
+int menuPage = 0;
+int maxMenuPages = 2;  //round(((sizeof(menuItems) / sizeof(String)) / 2) + .5);
+int cursorPosition = 0;
+int selectedMenu = 0;
+byte upArrow[8] = {0x04,0x0E,0x1F,0x04,0x04,0x04,0x04,0x00};
+byte downArrow[8] = {0x04,0x04,0x04,0x04,0x1F,0x0E,0x04,0x00};
+byte menuCursor[8] = {0x10,0x08,0x04,0x02,0x04,0x08,0x10,0x00};
+
+
 
 // Setup code only runs once
 // TODO: Break into private methods if helps with organization
@@ -122,6 +138,11 @@ void setup() {
 
   startTime = millis();
   endInitTime = 9000 + startTime;
+
+  // Menu items
+  lcd.createChar(0, menuCursor); // Create the custom arrow characters in void setup for global use
+  lcd.createChar(1, upArrow);
+  lcd.createChar(2, downArrow);
   /*  
   for (readIndex1 = 0; readIndex1 < numReadings; readIndex1++){
       total1 = total1 - readings1[readIndex1];
@@ -169,8 +190,9 @@ void loop() {
   // TODO: Add menus and other methods of working - needs to work with existing code
   } else if (mode == V2_MODE) {
     lcd.setBacklight(BLUE);
-    lcd.setCursor(0, 0);
-    lcd.print("Using V2.0");
+    //lcd.setCursor(0, 0);
+    //lcd.print("Using V2.0");
+    menu();
 
   // Work in TEST mode
   } else if (mode == TEST_MODE) {
@@ -187,6 +209,7 @@ void Initialize(long currentMillis) {
   lcd.setCursor(0,1);
   lcd.print("Left for TEST");
 
+  // TODO: look to see if we can use - "evaluateButton"
   // Check if "Select" button is pressed
   uint8_t buttons = lcd.readButtons();
   if (buttons) {
@@ -273,4 +296,259 @@ void TestInteractions() {
         counter++;
       }
     }
+}
+
+// TODO: refactoring menu code because sample relies on delays
+void menu() {
+  int key = lcd.readButtons();
+  int button = evaluateButton(readKey);
+
+  switch(selectedMenu) {
+    case 0:
+      mainMenu(button);
+      break;
+    case 1:
+      menuOne(button);
+      break;
+    case 2:
+      menuTwo(button);
+      break;
+    case 3:
+      menuThree(button);
+      break;
+    case 4:
+      menuFour(button);
+      break;
+  }
+  
+}
+
+// Interaction with the main menu listing
+void mainMenu(int button) {
+  // Draw
+  lcd.setCursor(1, 0);
+  lcd.print(menuItems[menuPage]);
+  lcd.setCursor(1, 1);
+  lcd.print(menuItems[menuPage + 1]);
+  if (menuPage == 0) {
+    lcd.setCursor(15, 1);
+    lcd.write(byte(2));
+  } else if (menuPage > 0 and menuPage < maxMenuPages) {
+    lcd.setCursor(15, 1);
+    lcd.write(byte(2));
+    lcd.setCursor(15, 0);
+    lcd.write(byte(1));
+  } else if (menuPage == maxMenuPages) {
+    lcd.setCursor(15, 0);
+    lcd.write(byte(1));
+  }
+
+  drawCursor();
+
+  // Interact
+  switch (button) {
+    case 0: // When button returns as 0 there is no action taken
+      return;
+    case 1:  // This case will execute if the "forward" button is pressed
+      lcd.clear();
+      switch (cursorPosition) { // The case that is selected here is dependent on which menu page you are on and where the cursor is.
+        case 0:
+          selectedMenu = 1;
+          return;
+        case 1:
+          selectedMenu = 2;
+          return;
+        case 2:
+          selectedMenu = 3;
+          return;
+        case 3:
+          selectedMenu = 4;
+          return;
+      }
+      break;
+    case 2:
+      lcd.clear();
+      if (menuPage == 0) {
+        cursorPosition = cursorPosition - 1;
+        cursorPosition = constrain(cursorPosition, 0, ((sizeof(menuItems) / sizeof(String)) - 1));
+      }
+      if (menuPage % 2 == 0 and cursorPosition % 2 == 0) {
+        menuPage = menuPage - 1;
+        menuPage = constrain(menuPage, 0, maxMenuPages);
+      }
+
+      if (menuPage % 2 != 0 and cursorPosition % 2 != 0) {
+        menuPage = menuPage - 1;
+        menuPage = constrain(menuPage, 0, maxMenuPages);
+      }
+
+      cursorPosition = cursorPosition - 1;
+      cursorPosition = constrain(cursorPosition, 0, ((sizeof(menuItems) / sizeof(String)) - 1));
+      break;
+    case 3:
+      lcd.clear();
+      if (menuPage % 2 == 0 and cursorPosition % 2 != 0) {
+        menuPage = menuPage + 1;
+        menuPage = constrain(menuPage, 0, maxMenuPages);
+      }
+
+      if (menuPage % 2 != 0 and cursorPosition % 2 == 0) {
+        menuPage = menuPage + 1;
+        menuPage = constrain(menuPage, 0, maxMenuPages);
+      }
+
+      cursorPosition = cursorPosition + 1;
+      cursorPosition = constrain(cursorPosition, 0, ((sizeof(menuItems) / sizeof(String)) - 1));
+      break;
+  }
+}
+
+// Home
+void menuOne(int button) {  
+  // Draw
+  if (boilShowGallons) {
+    lcd.setCursor(0, 0);
+    lcd.print("Curr/Targ Gal");
+    lcd.setCursor(0, 1);
+    String displayValue = "???/" + String(boilStopOne,1) + "/" + String(boilStopTwo,1);
+    lcd.print(displayValue);
+  } else {
+    lcd.setCursor(0, 0);
+    lcd.print("Current Pressure");
+    lcd.setCursor(0, 1);
+    lcd.print("???");
+  }
+
+  // Interact
+  switch (button) {
+    case 4:  // This case will execute if the "back" button is pressed
+        lcd.clear();
+        selectedMenu = 0;
+        return;
+   }
+}
+
+// Set Boil Kettle Stop 1
+void menuTwo(int button) {
+  // Draw
+  lcd.setCursor(0, 0);
+  lcd.print("Set Boil Stop 1");
+  lcd.setCursor(0, 1);
+  lcd.print(boilStopOne);
+
+  // Interact
+  switch (button) {
+    case 2:  // Increase value
+        lcd.clear();
+        boilStopOne += 0.5;
+        return;
+    case 3:  // Decrease value
+        lcd.clear();
+        boilStopOne -= 0.5;
+        return;
+    case 4:  // This case will execute if the "back" button is pressed
+        lcd.clear();
+        selectedMenu = 0;
+        return;
+   }
+}
+
+// Set Boil Kettle Stop 2
+void menuThree(int button) {
+  // Draw
+  lcd.setCursor(0, 0);
+  lcd.print("Set Boil Stop 2");
+  lcd.setCursor(0, 1);
+  lcd.print(boilStopTwo);
+
+  // Interact
+  switch (button) {
+    case 2:  // Increase value
+        lcd.clear();
+        boilStopTwo += 0.5;
+        return;
+    case 3:  // Decrease value
+        lcd.clear();
+        boilStopTwo -= 0.5;
+        return;
+    case 4:  // This case will execute if the "back" button is pressed
+        lcd.clear();
+        selectedMenu = 0;
+        return;
+   }
+}
+
+// Set Boil Display Units
+void menuFour(int button) {
+  // Draw
+  lcd.setCursor(0, 0);
+  lcd.print("Set Display Units");
+  lcd.setCursor(0, 1);
+  String displayUnits = boilShowGallons ? "Gallons" : "Pressure";
+  lcd.print(displayUnits);
+
+  // Interact
+  switch (button) {
+    case 2:  // Increase value
+        lcd.clear();
+        boilShowGallons = true;
+        return;
+    case 3:  // Decrease value
+        lcd.clear();
+        boilShowGallons = false;
+        return;
+    case 4:  // This case will execute if the "back" button is pressed
+        lcd.clear();
+        selectedMenu = 0;
+        return;
+   }
+}
+
+// When called, this function will erase the current cursor and redraw it based on the cursorPosition and menuPage variables.
+void drawCursor() {
+  for (int x = 0; x < 2; x++) {  // Erases current cursor
+    lcd.setCursor(0, x);
+    lcd.print(" ");
+  }
+
+  // The menu is set up to be progressive (menuPage 0 = Item 1 & Item 2, menuPage 1 = Item 2 & Item 3, menuPage 2 = Item 3 & Item 4), so
+  // in order to determine where the cursor should be you need to see if you are at an odd or even menu page and an odd or even cursor position.
+  if (menuPage % 2 == 0) {
+    if (cursorPosition % 2 == 0) {  // If the menu page is even and the cursor position is even that means the cursor should be on line 1
+      lcd.setCursor(0, 0);
+      lcd.write(byte(0));
+    }
+    if (cursorPosition % 2 != 0) {  // If the menu page is even and the cursor position is odd that means the cursor should be on line 2
+      lcd.setCursor(0, 1);
+      lcd.write(byte(0));
+    }
+  }
+  if (menuPage % 2 != 0) {
+    if (cursorPosition % 2 == 0) {  // If the menu page is odd and the cursor position is even that means the cursor should be on line 2
+      lcd.setCursor(0, 1);
+      lcd.write(byte(0));
+    }
+    if (cursorPosition % 2 != 0) {  // If the menu page is odd and the cursor position is odd that means the cursor should be on line 1
+      lcd.setCursor(0, 0);
+      lcd.write(byte(0));
+    }
+  }
+}
+
+// This function monitors for button presses to know which button was pressed.
+int evaluateButton(int x) {
+  uint8_t buttons = lcd.readButtons();
+  int result = 0;
+  if (buttons & BUTTON_RIGHT) {
+    result = 1; // right
+  } else if (buttons & BUTTON_UP) {
+    result = 2; // up
+  } else if (buttons & BUTTON_DOWN) {
+    result = 3; // down
+  } else if (buttons & BUTTON_LEFT) {
+    result = 4; // left
+  } else if (buttons & BUTTON_SELECT) { // currently unused work in progress
+    result = 5; // left
+  }
+  return result;
 }
