@@ -10,7 +10,6 @@
 class IProbe {
   public: 
     virtual ~IProbe() {};
-    virtual void Initialize() = 0;
     virtual bool IsTouching() = 0;
     virtual void Update(long currentMillis) = 0;
     virtual String Display() = 0;

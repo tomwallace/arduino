@@ -7,12 +7,12 @@
 
 #include "Arduino.h"
 #include "Adafruit_MPRLS.h"
+#include <utility/Adafruit_MCP23017.h>
 #include "IProbe.h"
 
 class PressureSensor : public IProbe {
   public:
     PressureSensor(Adafruit_MPRLS * mpr);
-    virtual void Initialize();
     virtual bool IsTouching();
     virtual void Update(long currentMillis);
     virtual String Display();
@@ -20,7 +20,8 @@ class PressureSensor : public IProbe {
   private:
     Adafruit_MPRLS * _mpr;
     int _numReadings;
-    int _readings[20];
+    int* _readings;
+    int _initSensorZeroCount;
     float _sensorZero;
     int _readingPointer;
 

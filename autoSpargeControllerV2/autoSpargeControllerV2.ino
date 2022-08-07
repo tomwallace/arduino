@@ -34,7 +34,7 @@
  * it finishes booting.  All lights will flash three times if in test mode.  To exit test mode,
  * reboot the trinket.
  */
-
+// readStatus
 // Define Pins
 #define RESET_PIN -1  // set to any GPIO pin # to hard-reset on begin()
 #define EOC_PIN -1  // set to any GPIO pin to read end-of-conversion by pin
@@ -125,37 +125,19 @@ void setup() {
   // Set up serial port for output at 9600 bps
   Serial.begin(9600);
 
-  BoilPressureSensor.Initialize();
-  
+  mpr.begin();
   lcd.begin(16, 2);
   lcd.setBacklight(GREEN);
-  
-  // Lug Wrench welcome message  
-  String welcome = "Lug Wrench Brewing Company Auto Sparge V2.0";
-  for (int i = 0; i < (welcome.length() + 16); i++) {
-    int start = 0;
-    if (i > 16) {
-      start = i - 16;
-    }
-    
-    String subWelcome = welcome.substring(start, i + 1);
-    int cursorLocation = 16 - subWelcome.length();
-    if (i > 16) {
-      cursorLocation = 0;
-    }
-    
-    lcd.setCursor(cursorLocation, 0);
-    lcd.print(subWelcome);
-    delay(150);
-    lcd.clear();
-  }
-  
-  lcd.clear();
-  delay(1000);
 
+  Serial.println("1");
+  
+  displayLugWrenchWelcomeMessage();
+  
   startTime = millis();
   endInitTime = 9000 + startTime;
 
+  Serial.println("2");
+  
   // Menu items
   lcd.createChar(0, menuCursor); // Create the custom arrow characters in void setup for global use
   lcd.createChar(1, upArrow);
@@ -306,6 +288,31 @@ void TestInteractions() {
         counter++;
       }
     }
+}
+
+void displayLugWrenchWelcomeMessage() {
+  // Lug Wrench welcome message  
+  String welcome = "Lug Wrench Brewing Company Auto Sparge V2.0";
+  for (int i = 0; i < (welcome.length() + 16); i++) {
+    int start = 0;
+    if (i > 16) {
+      start = i - 16;
+    }
+    
+    String subWelcome = welcome.substring(start, i + 1);
+    int cursorLocation = 16 - subWelcome.length();
+    if (i > 16) {
+      cursorLocation = 0;
+    }
+    
+    lcd.setCursor(cursorLocation, 0);
+    lcd.print(subWelcome);
+    delay(150);
+    lcd.clear();
+  }
+  
+  lcd.clear();
+  delay(1000);
 }
 
 void menu() {

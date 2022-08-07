@@ -10,16 +10,8 @@ PressureSensor::PressureSensor(Adafruit_MPRLS * mpr) {
   _numReadings = 20;
   _sensorZero = 0;
   _readingPointer = 0;
-}
-
-void PressureSensor::Initialize() {
-  _mpr->begin();
-
-  int readIndex1 = 0;
-  for (readIndex1 = 0; readIndex1 < _numReadings; readIndex1++){
-      AddReading(_mpr->readPressure());
-  }
-  _sensorZero = AverageReadings();
+  _readings = new int[_numReadings];
+  _initSensorZeroCount = 0;
 }
 
 bool PressureSensor::IsTouching() {
@@ -35,11 +27,37 @@ bool PressureSensor::IsTouching() {
 }
 
 void PressureSensor::Update(long currentMillis) {
-  AddReading(_mpr->readPressure());
+  // CONNECTED sensor readStatus = 64
+  if (_mpr->readStatus() == 64) {
+    // Still need to initialize sensor "zero"
+    if (_initSensorZeroCount <= 20) {
+      _initSensorZeroCount++;
+      
+      AddReading(_mpr->readPressure());
+
+      // If we are greater than 20 initialization readings, set _sensorZero
+      if (_initSensorZeroCount > 20) {
+        _sensorZero = AverageReadings();
+        Serial.println("Connected - Setting _sensorZero to - " + String(_sensorZero));
+      }
+    } else {
+      // Normal condition - read pressure
+      AddReading(_mpr->readPressure());
+    }
+  } else if (_sensorZero != 0) {
+    Serial.println("Unconnected");
+    // UNCONNECTED, so reset variables
+    _initSensorZeroCount = 0;
+    _sensorZero = 0;
+  }
 }
 
 String PressureSensor::Display() {
   extern bool boilShowGallons;  // Set in main program as an option to show gallons or pressure
+
+  // If _sensorZero == 0 and likely UNCONNECTED, then we are not initialized, so display ---
+  if (_sensorZero == 0)
+    return "----";
 
   if (!boilShowGallons)
     return String(AverageReadings() - _sensorZero,2);
