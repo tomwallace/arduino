@@ -1,14 +1,21 @@
 #include <Wire.h>
 #include <Adafruit_RGBLCDShield.h>
 #include <utility/Adafruit_MCP23017.h>
-#include "Adafruit_MPRLS.h"
 
 #include "Beeper.h"
 #include "Button.h"
 #include "EventQueue.h"
+#include "PressureSensor.h"
 #include "Probe.h"
 #include "WaterPump.h"
 #include "WortPump.h"
+
+#include "IMenu.h"
+#include "CurrentDataMenu.h"
+#include "SetBoilDisplayUnitsMenu.h"
+#include "SetBoilStopOneMenu.h"
+#include "SetBoilStopTwoMenu.h"
+#include "ToggleBoilStopMenu.h"
 
 /* TODO: Evaluate instructions to see if still accurate.
  * AUTOSPARGE CONTROLLER
@@ -76,6 +83,9 @@ Probe MashProbe("Mash Probe", MASH_PROBE_PIN, INPUT);
 Probe MashProbeHigh("Mash Probe High", MASH_PROBE_HIGH_PIN, INPUT);
 Probe BoilProbe("Boil Probe", BOIL_PROBE_PIN, INPUT);
 
+// TODO: New
+PressureSensor BoilPressureSensor(&mpr);
+
 WaterPump WaterPump(WATER_PUMP_PIN, 10000, &AlarmEventQueue, &MashProbe, &MashProbeHigh);
 WortPump WortPump(WORT_PUMP_PIN, 2000, &AlarmEventQueue, &BoilProbe);
 
@@ -86,30 +96,37 @@ int startTime = 0;
 int endInitTime = 0;
 float boilStopOne = 4;  // Provides default for pause boil to turn off sparge
 float boilStopTwo = 7.5;  // Provide default for complete boil stop level
+bool atBoilStopOne = true;  // Indicates if we are at the first stop in the boil
 bool boilShowGallons = true;  // Provide default for display in gallons
 
 // Menu control variables
 int readKey;
-String menuItems[] = {"Home", "Boil Stop 1", "Boil Stop 2", "Display Units"};
+
+CurrentDataMenu CurrentDataMenu(&BoilPressureSensor, &lcd);
+ToggleBoilStopMenu ToggleBoilStopMenu(&lcd);
+SetBoilStopOneMenu SetBoilStopOneMenu(&lcd);
+SetBoilStopTwoMenu SetBoilStopTwoMenu(&lcd);
+SetBoilDisplayUnitsMenu SetBoilDisplayUnitsMenu(&lcd);
+
+// TODO: Clean up commented out Code
+IMenu * menuItems[] = {&CurrentDataMenu, &ToggleBoilStopMenu, &SetBoilStopOneMenu, &SetBoilStopTwoMenu, &SetBoilDisplayUnitsMenu};
 int menuPage = 0;
-int maxMenuPages = 2;  //round(((sizeof(menuItems) / sizeof(String)) / 2) + .5);
+int sizeOfMenuItems = 5;
+int maxMenuPages = 3;
 int cursorPosition = 0;
 int selectedMenu = 0;
 byte upArrow[8] = {0x04,0x0E,0x1F,0x04,0x04,0x04,0x04,0x00};
 byte downArrow[8] = {0x04,0x04,0x04,0x04,0x1F,0x0E,0x04,0x00};
 byte menuCursor[8] = {0x10,0x08,0x04,0x02,0x04,0x08,0x10,0x00};
 
-
-
 // Setup code only runs once
-// TODO: Break into private methods if helps with organization
 void setup() {
   pinMode(TRINKET_BOARD_LED_PIN, OUTPUT);
   // Set up serial port for output at 9600 bps
-  // TODO: Figure out why serial output is not writing
   Serial.begin(9600);
+
+  BoilPressureSensor.Initialize();
   
-  mpr.begin();
   lcd.begin(16, 2);
   lcd.setBacklight(GREEN);
   
@@ -142,15 +159,7 @@ void setup() {
   // Menu items
   lcd.createChar(0, menuCursor); // Create the custom arrow characters in void setup for global use
   lcd.createChar(1, upArrow);
-  lcd.createChar(2, downArrow);
-  /*  
-  for (readIndex1 = 0; readIndex1 < numReadings; readIndex1++){
-      total1 = total1 - readings1[readIndex1];
-      readings1[readIndex1] = mpr.readPressure();
-      total1 = total1 + readings1[readIndex1];
-  }
-  SensorZero = total1 / numReadings;
-  */
+  lcd.createChar(2, downArrow);  
 }
 
 // Main code that runs as a state machine
@@ -190,9 +199,10 @@ void loop() {
   // TODO: Add menus and other methods of working - needs to work with existing code
   } else if (mode == V2_MODE) {
     lcd.setBacklight(BLUE);
-    //lcd.setCursor(0, 0);
-    //lcd.print("Using V2.0");
+
     menu();
+
+    BoilPressureSensor.Update(currentMillis);
 
   // Work in TEST mode
   } else if (mode == TEST_MODE) {
@@ -298,38 +308,54 @@ void TestInteractions() {
     }
 }
 
-// TODO: refactoring menu code because sample relies on delays
 void menu() {
   int key = lcd.readButtons();
   int button = evaluateButton(readKey);
 
+  if (selectedMenu == 0)
+     mainMenu(button);
+  else
+     menuItems[selectedMenu - 1]->Interact(button);
+
+// TODO: Clean up commented out code
+/*
   switch(selectedMenu) {
     case 0:
       mainMenu(button);
       break;
     case 1:
-      menuOne(button);
+      menuItems[0]->Interact(button);
+      //menuOne(button);
       break;
     case 2:
-      menuTwo(button);
+      menuItems[1]->Interact(button);
+      //menuTwo(button);
       break;
     case 3:
-      menuThree(button);
+      menuItems[2]->Interact(button);
+      //menuThree(button);
       break;
     case 4:
-      menuFour(button);
+      menuItems[3]->Interact(button);
+      //menuFour(button);
+      break;
+    case 5:
+      menuItems[4]->Interact(button);
+      //menuFive(button);
       break;
   }
-  
+  */
 }
 
 // Interaction with the main menu listing
 void mainMenu(int button) {
   // Draw
   lcd.setCursor(1, 0);
-  lcd.print(menuItems[menuPage]);
+  lcd.print(menuItems[menuPage]->GetName());
+  //lcd.print(menuItems[menuPage]);
   lcd.setCursor(1, 1);
-  lcd.print(menuItems[menuPage + 1]);
+  lcd.print(menuItems[menuPage + 1]->GetName());
+  //lcd.print(menuItems[menuPage + 1]);
   if (menuPage == 0) {
     lcd.setCursor(15, 1);
     lcd.write(byte(2));
@@ -351,6 +377,10 @@ void mainMenu(int button) {
       return;
     case 1:  // This case will execute if the "forward" button is pressed
       lcd.clear();
+      selectedMenu = cursorPosition + 1; // The case that is selected here is dependent on which menu page you are on and where the cursor is.
+      return;
+      // TODO: Clean up commented out code
+      /*
       switch (cursorPosition) { // The case that is selected here is dependent on which menu page you are on and where the cursor is.
         case 0:
           selectedMenu = 1;
@@ -364,14 +394,19 @@ void mainMenu(int button) {
         case 3:
           selectedMenu = 4;
           return;
+        case 4:
+          selectedMenu = 5;
+          return;
       }
+      */
       break;
     case 2:
       lcd.clear();
       if (menuPage == 0) {
         cursorPosition = cursorPosition - 1;
-        cursorPosition = constrain(cursorPosition, 0, ((sizeof(menuItems) / sizeof(String)) - 1));
+        cursorPosition = constrain(cursorPosition, 0, sizeOfMenuItems - 1);
       }
+ 
       if (menuPage % 2 == 0 and cursorPosition % 2 == 0) {
         menuPage = menuPage - 1;
         menuPage = constrain(menuPage, 0, maxMenuPages);
@@ -383,7 +418,7 @@ void mainMenu(int button) {
       }
 
       cursorPosition = cursorPosition - 1;
-      cursorPosition = constrain(cursorPosition, 0, ((sizeof(menuItems) / sizeof(String)) - 1));
+      cursorPosition = constrain(cursorPosition, 0, sizeOfMenuItems - 1);
       break;
     case 3:
       lcd.clear();
@@ -398,11 +433,13 @@ void mainMenu(int button) {
       }
 
       cursorPosition = cursorPosition + 1;
-      cursorPosition = constrain(cursorPosition, 0, ((sizeof(menuItems) / sizeof(String)) - 1));
+      cursorPosition = constrain(cursorPosition, 0, sizeOfMenuItems - 1);
       break;
   }
 }
 
+// TODO: Clean up commented out code
+/*
 // Home
 void menuOne(int button) {  
   // Draw
@@ -410,13 +447,14 @@ void menuOne(int button) {
     lcd.setCursor(0, 0);
     lcd.print("Curr/Targ Gal");
     lcd.setCursor(0, 1);
-    String displayValue = "???/" + String(boilStopOne,1) + "/" + String(boilStopTwo,1);
+    String suffix = atBoilStopOne ? "[" + String(boilStopOne,1) + "]/" + String(boilStopTwo,1) : String(boilStopOne,1) + "/[" + String(boilStopTwo,1) + "]";
+    String displayValue = BoilPressureSensor.Display() + "/" + suffix;
     lcd.print(displayValue);
   } else {
     lcd.setCursor(0, 0);
     lcd.print("Current Pressure");
     lcd.setCursor(0, 1);
-    lcd.print("???");
+    lcd.print(BoilPressureSensor.Display());
   }
 
   // Interact
@@ -428,11 +466,37 @@ void menuOne(int button) {
    }
 }
 
-// Set Boil Kettle Stop 1
+// Switch Boil Kettle Stops
 void menuTwo(int button) {
   // Draw
   lcd.setCursor(0, 0);
-  lcd.print("Set Boil Stop 1");
+  lcd.print("Toggle Boil Stop");
+  lcd.setCursor(0, 1);
+  String displayToggle = atBoilStopOne ? "Boil Stop 1" : "Boil Stop 2";
+  lcd.print(displayToggle);
+
+  // Interact
+  switch (button) {
+    case 2:  // Toggle true
+        lcd.clear();
+        atBoilStopOne = true;
+        return;
+    case 3:  // Toggle false
+        lcd.clear();
+        atBoilStopOne = false;
+        return;
+    case 4:  // This case will execute if the "back" button is pressed
+        lcd.clear();
+        selectedMenu = 0;
+        return;
+   }
+}
+
+// Set Boil Kettle Stop 1
+void menuThree(int button) {
+  // Draw
+  lcd.setCursor(0, 0);
+  lcd.print("Set Boil Stop 1 Value");
   lcd.setCursor(0, 1);
   lcd.print(boilStopOne);
 
@@ -454,10 +518,10 @@ void menuTwo(int button) {
 }
 
 // Set Boil Kettle Stop 2
-void menuThree(int button) {
+void menuFour(int button) {
   // Draw
   lcd.setCursor(0, 0);
-  lcd.print("Set Boil Stop 2");
+  lcd.print("Set Boil Stop 2 Value");
   lcd.setCursor(0, 1);
   lcd.print(boilStopTwo);
 
@@ -479,7 +543,7 @@ void menuThree(int button) {
 }
 
 // Set Boil Display Units
-void menuFour(int button) {
+void menuFive(int button) {
   // Draw
   lcd.setCursor(0, 0);
   lcd.print("Set Display Units");
@@ -503,7 +567,7 @@ void menuFour(int button) {
         return;
    }
 }
-
+*/
 // When called, this function will erase the current cursor and redraw it based on the cursorPosition and menuPage variables.
 void drawCursor() {
   for (int x = 0; x < 2; x++) {  // Erases current cursor
