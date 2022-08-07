@@ -19,11 +19,15 @@ bool PressureSensor::IsTouching() {
   extern float boilStopTwo;  // Set in main program for the second gallon stop for the boil
   extern bool atBoilStopOne; // Set in main program for using the first gallon stop
 
+  // Make sure if we are UNCONNECTED to say IsTouching = true to prevent pump from firing without the probe
+  if (_sensorZero == 0)
+    return true;
+
   if (atBoilStopOne) {
     return GetGallons() >= boilStopOne;
   }
   
-  return GetGallons() >= boilStopOne;
+  return GetGallons() >= boilStopTwo;
 }
 
 void PressureSensor::Update(long currentMillis) {

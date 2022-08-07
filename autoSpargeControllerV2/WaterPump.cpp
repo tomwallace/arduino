@@ -6,10 +6,10 @@
 #include "Arduino.h"
 #include "EventQueue.h"
 #include "Loggable.h"
-#include "Probe.h"
+#include "IProbe.h"
 #include "WaterPump.h"
 
-WaterPump::WaterPump(int outputPin, long delay, EventQueue * alarmEventQueue, Probe * mashProbe, Probe * mashProbeHigh) {
+WaterPump::WaterPump(int outputPin, long delay, EventQueue * alarmEventQueue, IProbe * mashProbe, IProbe * mashProbeHigh) {
     OutputPin = outputPin; // The pin number that control pump output
     pinMode(OutputPin, OUTPUT);
 

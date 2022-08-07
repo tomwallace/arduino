@@ -31,3 +31,7 @@ void Probe::Update(long currentMillis) {
     Log(currentMillis, ProbeName, "State has changed to " + state); 
   }
 }
+
+String Probe::Display() {
+  return "";
+}

@@ -8,15 +8,15 @@
 #include "Arduino.h"
 #include "EventQueue.h"
 #include "Loggable.h"
-#include "Probe.h"
+#include "IProbe.h"
 
 class WaterPump : public Loggable {
   private:
 	int PUMP_ON;
 	int PUMP_OFF;
 	EventQueue * _alarmEventQueue;
-	Probe * _mashProbe;
-	Probe * _mashProbeHigh;
+	IProbe * _mashProbe;
+	IProbe * _mashProbeHigh;
 	int OutputPin;
 	bool IsActive;
 	long Delay;
@@ -25,7 +25,7 @@ class WaterPump : public Loggable {
 	unsigned long previousMillis;
   
   public: 
-	WaterPump(int outputPin, long delay, EventQueue * alarmEventQueue, Probe * mashProbe, Probe * mashProbeHigh);
+	WaterPump(int outputPin, long delay, EventQueue * alarmEventQueue, IProbe * mashProbe, IProbe * mashProbeHigh);
 	void SetIsActive(bool isActive);
 	bool GetIsActive();
 	void Update(long currentMillis);

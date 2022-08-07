@@ -6,10 +6,10 @@
 #include "Arduino.h"
 #include "EventQueue.h"
 #include "Loggable.h"
-#include "Probe.h"
+#include "IProbe.h"
 #include "WortPump.h"
 
-WortPump::WortPump(int outputPin, long onInterval, EventQueue * alarmEventQueue, Probe * boilProbe) {
+WortPump::WortPump(int outputPin, long onInterval, EventQueue * alarmEventQueue, IProbe * boilProbe) {
 	OutputPin = outputPin; // The pin number that control pump output
     pinMode(OutputPin, OUTPUT);
 
@@ -79,4 +79,9 @@ void WortPump::Update(long currentMillis) {
       String state = CurrentState == PUMP_ON ? "ON" : "OFF";
       Log(currentMillis, "Wort Pump", "State has changed to " + state); 
     }
+}
+
+// Need ability to override the default boilProbe to provide use of pressureSensor in v2 of Autosparge
+void WortPump::SetProbe(IProbe * boilProbe) {
+  _boilProbe = boilProbe;
 }

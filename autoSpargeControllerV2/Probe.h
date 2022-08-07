@@ -6,9 +6,10 @@
 #define Probe_h
 
 #include "Arduino.h"
+#include "IProbe.h"
 #include "Loggable.h"
 
-class Probe : public Loggable {
+class Probe : public IProbe, Loggable {
   private:
 	int PROBE_CLEAR;
 	int PROBE_TOUCH_LIQUID;
@@ -20,6 +21,7 @@ class Probe : public Loggable {
 	Probe(String probeName, int inputPin, int inputType);
 	bool IsTouching();
 	void Update(long currentMillis);
+  String Display();
 };
 
 #endif

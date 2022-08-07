@@ -17,8 +17,7 @@
 #include "SetBoilStopTwoMenu.h"
 #include "ToggleBoilStopMenu.h"
 
-/* TODO: Evaluate instructions to see if still accurate.
- * AUTOSPARGE CONTROLLER
+/* AUTOSPARGE CONTROLLER
  * version 2.0
  * by Tom Wallace and John Baker
  * This sketch is the upgraded version of the AutoSparge Controller, which controls the components hooked up 
@@ -52,7 +51,6 @@
 #define WORT_PUMP_PIN 11 //12
 
 // Define Colors
-// TODO: Remove those not needed
 #define RED 0x1
 #define YELLOW 0x3
 #define GREEN 0x2
@@ -83,7 +81,6 @@ Probe MashProbe("Mash Probe", MASH_PROBE_PIN, INPUT);
 Probe MashProbeHigh("Mash Probe High", MASH_PROBE_HIGH_PIN, INPUT);
 Probe BoilProbe("Boil Probe", BOIL_PROBE_PIN, INPUT);
 
-// TODO: New
 PressureSensor BoilPressureSensor(&mpr);
 
 WaterPump WaterPump(WATER_PUMP_PIN, 10000, &AlarmEventQueue, &MashProbe, &MashProbeHigh);
@@ -100,16 +97,13 @@ bool atBoilStopOne = true;  // Indicates if we are at the first stop in the boil
 bool boilShowGallons = true;  // Provide default for display in gallons
 
 // Menu control variables
-int readKey;
-
 CurrentDataMenu CurrentDataMenu(&BoilPressureSensor, &lcd);
 ToggleBoilStopMenu ToggleBoilStopMenu(&lcd);
 SetBoilStopOneMenu SetBoilStopOneMenu(&lcd);
 SetBoilStopTwoMenu SetBoilStopTwoMenu(&lcd);
 SetBoilDisplayUnitsMenu SetBoilDisplayUnitsMenu(&lcd);
-
-// TODO: Clean up commented out Code
 IMenu * menuItems[] = {&CurrentDataMenu, &ToggleBoilStopMenu, &SetBoilStopOneMenu, &SetBoilStopTwoMenu, &SetBoilDisplayUnitsMenu};
+
 int menuPage = 0;
 int sizeOfMenuItems = 5;
 int maxMenuPages = 3;
@@ -128,15 +122,11 @@ void setup() {
   mpr.begin();
   lcd.begin(16, 2);
   lcd.setBacklight(GREEN);
-
-  Serial.println("1");
   
   displayLugWrenchWelcomeMessage();
   
   startTime = millis();
   endInitTime = 9000 + startTime;
-
-  Serial.println("2");
   
   // Menu items
   lcd.createChar(0, menuCursor); // Create the custom arrow characters in void setup for global use
@@ -151,6 +141,11 @@ void loop() {
   
   if (!initializeComplete) {
     Initialize(currentMillis);
+    
+    // Provide V2 override for pressure sensor probe in WortPump - this overload is what allows the pressure sensor to be used
+    if (mode == V2_MODE) {
+      WortPump.SetProbe(&BoilPressureSensor);
+    }
     return;
   }
 
@@ -169,6 +164,7 @@ void loop() {
   
     MashProbe.Update(currentMillis);
     MashProbeHigh.Update(currentMillis);
+    
     BoilProbe.Update(currentMillis);
   
     WaterPump.Update(currentMillis);
@@ -178,19 +174,33 @@ void loop() {
     Buzzer.Update(currentMillis);
 
   // Use new Version 2.0 code
-  // TODO: Add menus and other methods of working - needs to work with existing code
   } else if (mode == V2_MODE) {
     lcd.setBacklight(BLUE);
 
     menu();
 
+    LeftButton.Update(currentMillis);
+    RightButton.Update(currentMillis);
+  
+    // Set pump active based on their buttons
+    WaterPump.SetIsActive(LeftButton.GetMatchingFunctionOn());
+    WortPump.SetIsActive(RightButton.GetMatchingFunctionOn());
+  
+    MashProbe.Update(currentMillis);
+    MashProbeHigh.Update(currentMillis);
+
     BoilPressureSensor.Update(currentMillis);
+  
+    WaterPump.Update(currentMillis);
+    WortPump.Update(currentMillis);
+
+    Alarm.Update(currentMillis);
+    Buzzer.Update(currentMillis);
 
   // Work in TEST mode
   } else if (mode == TEST_MODE) {
     TestInteractions();
   }
-
 }
 
 // Initialize with button options to determine running mode
@@ -201,22 +211,20 @@ void Initialize(long currentMillis) {
   lcd.setCursor(0,1);
   lcd.print("Left for TEST");
 
-  // TODO: look to see if we can use - "evaluateButton"
   // Check if "Select" button is pressed
-  uint8_t buttons = lcd.readButtons();
-  if (buttons) {
-    if (buttons & BUTTON_SELECT) {
-      initializeComplete = true;
-      mode = V2_MODE;
-      lcd.clear();
-      return;
-    }
-    if (buttons & BUTTON_LEFT) {
-      initializeComplete = true;
-      mode = TEST_MODE;
-      lcd.clear();
-      return;
-    }
+  int button = evaluateButton();
+  if (button == 5) {
+    initializeComplete = true;
+    mode = V2_MODE;
+    lcd.clear();
+    return;
+  }
+  // Check to see if the "Left" button is pressed
+  if (button == 4) {
+    initializeComplete = true;
+    mode = TEST_MODE;
+    lcd.clear();
+    return;
   }
 
   // Our countdown is over - default to Auto Sparge 1.0
@@ -290,6 +298,7 @@ void TestInteractions() {
     }
 }
 
+// Display LugWrench Welcome Message on start up
 void displayLugWrenchWelcomeMessage() {
   // Lug Wrench welcome message  
   String welcome = "Lug Wrench Brewing Company Auto Sparge V2.0";
@@ -315,43 +324,14 @@ void displayLugWrenchWelcomeMessage() {
   delay(1000);
 }
 
+// Base function for interacting with the menus
 void menu() {
-  int key = lcd.readButtons();
-  int button = evaluateButton(readKey);
+  int button = evaluateButton();
 
   if (selectedMenu == 0)
      mainMenu(button);
   else
      menuItems[selectedMenu - 1]->Interact(button);
-
-// TODO: Clean up commented out code
-/*
-  switch(selectedMenu) {
-    case 0:
-      mainMenu(button);
-      break;
-    case 1:
-      menuItems[0]->Interact(button);
-      //menuOne(button);
-      break;
-    case 2:
-      menuItems[1]->Interact(button);
-      //menuTwo(button);
-      break;
-    case 3:
-      menuItems[2]->Interact(button);
-      //menuThree(button);
-      break;
-    case 4:
-      menuItems[3]->Interact(button);
-      //menuFour(button);
-      break;
-    case 5:
-      menuItems[4]->Interact(button);
-      //menuFive(button);
-      break;
-  }
-  */
 }
 
 // Interaction with the main menu listing
@@ -386,26 +366,7 @@ void mainMenu(int button) {
       lcd.clear();
       selectedMenu = cursorPosition + 1; // The case that is selected here is dependent on which menu page you are on and where the cursor is.
       return;
-      // TODO: Clean up commented out code
-      /*
-      switch (cursorPosition) { // The case that is selected here is dependent on which menu page you are on and where the cursor is.
-        case 0:
-          selectedMenu = 1;
-          return;
-        case 1:
-          selectedMenu = 2;
-          return;
-        case 2:
-          selectedMenu = 3;
-          return;
-        case 3:
-          selectedMenu = 4;
-          return;
-        case 4:
-          selectedMenu = 5;
-          return;
-      }
-      */
+
       break;
     case 2:
       lcd.clear();
@@ -445,136 +406,6 @@ void mainMenu(int button) {
   }
 }
 
-// TODO: Clean up commented out code
-/*
-// Home
-void menuOne(int button) {  
-  // Draw
-  if (boilShowGallons) {
-    lcd.setCursor(0, 0);
-    lcd.print("Curr/Targ Gal");
-    lcd.setCursor(0, 1);
-    String suffix = atBoilStopOne ? "[" + String(boilStopOne,1) + "]/" + String(boilStopTwo,1) : String(boilStopOne,1) + "/[" + String(boilStopTwo,1) + "]";
-    String displayValue = BoilPressureSensor.Display() + "/" + suffix;
-    lcd.print(displayValue);
-  } else {
-    lcd.setCursor(0, 0);
-    lcd.print("Current Pressure");
-    lcd.setCursor(0, 1);
-    lcd.print(BoilPressureSensor.Display());
-  }
-
-  // Interact
-  switch (button) {
-    case 4:  // This case will execute if the "back" button is pressed
-        lcd.clear();
-        selectedMenu = 0;
-        return;
-   }
-}
-
-// Switch Boil Kettle Stops
-void menuTwo(int button) {
-  // Draw
-  lcd.setCursor(0, 0);
-  lcd.print("Toggle Boil Stop");
-  lcd.setCursor(0, 1);
-  String displayToggle = atBoilStopOne ? "Boil Stop 1" : "Boil Stop 2";
-  lcd.print(displayToggle);
-
-  // Interact
-  switch (button) {
-    case 2:  // Toggle true
-        lcd.clear();
-        atBoilStopOne = true;
-        return;
-    case 3:  // Toggle false
-        lcd.clear();
-        atBoilStopOne = false;
-        return;
-    case 4:  // This case will execute if the "back" button is pressed
-        lcd.clear();
-        selectedMenu = 0;
-        return;
-   }
-}
-
-// Set Boil Kettle Stop 1
-void menuThree(int button) {
-  // Draw
-  lcd.setCursor(0, 0);
-  lcd.print("Set Boil Stop 1 Value");
-  lcd.setCursor(0, 1);
-  lcd.print(boilStopOne);
-
-  // Interact
-  switch (button) {
-    case 2:  // Increase value
-        lcd.clear();
-        boilStopOne += 0.5;
-        return;
-    case 3:  // Decrease value
-        lcd.clear();
-        boilStopOne -= 0.5;
-        return;
-    case 4:  // This case will execute if the "back" button is pressed
-        lcd.clear();
-        selectedMenu = 0;
-        return;
-   }
-}
-
-// Set Boil Kettle Stop 2
-void menuFour(int button) {
-  // Draw
-  lcd.setCursor(0, 0);
-  lcd.print("Set Boil Stop 2 Value");
-  lcd.setCursor(0, 1);
-  lcd.print(boilStopTwo);
-
-  // Interact
-  switch (button) {
-    case 2:  // Increase value
-        lcd.clear();
-        boilStopTwo += 0.5;
-        return;
-    case 3:  // Decrease value
-        lcd.clear();
-        boilStopTwo -= 0.5;
-        return;
-    case 4:  // This case will execute if the "back" button is pressed
-        lcd.clear();
-        selectedMenu = 0;
-        return;
-   }
-}
-
-// Set Boil Display Units
-void menuFive(int button) {
-  // Draw
-  lcd.setCursor(0, 0);
-  lcd.print("Set Display Units");
-  lcd.setCursor(0, 1);
-  String displayUnits = boilShowGallons ? "Gallons" : "Pressure";
-  lcd.print(displayUnits);
-
-  // Interact
-  switch (button) {
-    case 2:  // Increase value
-        lcd.clear();
-        boilShowGallons = true;
-        return;
-    case 3:  // Decrease value
-        lcd.clear();
-        boilShowGallons = false;
-        return;
-    case 4:  // This case will execute if the "back" button is pressed
-        lcd.clear();
-        selectedMenu = 0;
-        return;
-   }
-}
-*/
 // When called, this function will erase the current cursor and redraw it based on the cursorPosition and menuPage variables.
 void drawCursor() {
   for (int x = 0; x < 2; x++) {  // Erases current cursor
@@ -607,7 +438,7 @@ void drawCursor() {
 }
 
 // This function monitors for button presses to know which button was pressed.
-int evaluateButton(int x) {
+int evaluateButton() {
   uint8_t buttons = lcd.readButtons();
   int result = 0;
   if (buttons & BUTTON_RIGHT) {
