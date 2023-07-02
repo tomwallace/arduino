@@ -121,7 +121,7 @@ void setup() {
 
   mpr.begin();
   lcd.begin(16, 2);
-  lcd.setBacklight(GREEN);
+  lcd.setBacklight(BLUE);
   
   displayLugWrenchWelcomeMessage();
   
@@ -175,7 +175,7 @@ void loop() {
 
   // Use new Version 2.0 code
   } else if (mode == V2_MODE) {
-    lcd.setBacklight(BLUE);
+    lcd.setBacklight(GREEN);
 
     menu();
 

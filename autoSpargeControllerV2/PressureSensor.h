@@ -20,12 +20,12 @@ class PressureSensor : public IProbe {
   private:
     Adafruit_MPRLS * _mpr;
     int _numReadings;
-    int* _readings;
+    float* _readings;
     int _initSensorZeroCount;
     float _sensorZero;
     int _readingPointer;
 
-    void AddReading(int reading);
+    void AddReading(float reading);
     float AverageReadings();
     float GetGallons();
 };

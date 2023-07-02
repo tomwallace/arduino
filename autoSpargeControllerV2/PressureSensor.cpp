@@ -10,7 +10,7 @@ PressureSensor::PressureSensor(Adafruit_MPRLS * mpr) {
   _numReadings = 20;
   _sensorZero = 0;
   _readingPointer = 0;
-  _readings = new int[_numReadings];
+  _readings = new float[_numReadings];
   _initSensorZeroCount = 0;
 }
 
@@ -70,7 +70,7 @@ String PressureSensor::Display() {
 }
 
 // Private - Adds the new reading to our array of reading numbers, moving the pointer
-void PressureSensor::AddReading(int reading) {
+void PressureSensor::AddReading(float reading) {
   _readings[_readingPointer] = reading;
   _readingPointer += 1;
   if (_readingPointer >= _numReadings)
@@ -79,7 +79,7 @@ void PressureSensor::AddReading(int reading) {
 
 // Private - Returns the average of the array of reading numbers
 float PressureSensor::AverageReadings() {
-  long total = 0;
+  float total = 0;
   int readIndex1 = 0;
   for (readIndex1 = 0; readIndex1 < _numReadings; readIndex1++){
       total += _readings[readIndex1];
