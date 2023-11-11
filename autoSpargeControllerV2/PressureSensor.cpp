@@ -93,5 +93,5 @@ float PressureSensor::GetGallons() {
   
   // Translate the pressure into gallons applying formula
   // Formula updated on 11/11/23
-  return (2.4717 * pressure) - 1.1014;
+  return (0.4021 * pressure) + 0.4707;
 }
