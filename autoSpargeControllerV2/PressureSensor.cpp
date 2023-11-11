@@ -90,8 +90,8 @@ float PressureSensor::AverageReadings() {
 // Private - Returns pressure in gallons
 float PressureSensor::GetGallons() {
   float pressure = AverageReadings() - _sensorZero;
-
-  // TODO - work with different formulas, maybe even based on temp
+  
   // Translate the pressure into gallons applying formula
-  return pressure/2;
+  // Formula updated on 11/11/23
+  return (2.4717 * pressure) - 1.1014;
 }
