@@ -92,6 +92,6 @@ float PressureSensor::GetGallons() {
   float pressure = AverageReadings() - _sensorZero;
   
   // Translate the pressure into gallons applying formula
-  // Formula updated on 11/11/23
-  return (0.4021 * pressure) + 0.4707;
+  // Formula updated on 04/21/23 - reading 0.5 gal low at key points
+  return ((0.4021 * pressure) + 0.4707) + 0.5;
 }
