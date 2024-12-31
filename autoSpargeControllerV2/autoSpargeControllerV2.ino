@@ -31,7 +31,7 @@
  * 
  * Test mode can be entered by reboot the trinket (or cycling power) and holding down the Left Button while
  * it finishes booting.  All lights will flash three times if in test mode.  To exit test mode,
- * reboot the trinket.
+ * reboot the trinket. Updated.
  */
 // readStatus
 // Define Pins
